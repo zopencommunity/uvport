@@ -1,0 +1,101 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/mod.rs /tmp/mio-zos-12/src/sys/unix/mod.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/mio-zos-12/src/sys/unix/mod.rs	2026-08-11 10:39:20.307606942 -0400
+@@ -55,7 +55,8 @@
+         target_os = "vita",
+         target_os = "cygwin",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++        target_os = "zos"
+     ), path = "selector/poll.rs")]
+     mod selector;
+     pub(crate) use self::selector::*;
+@@ -114,7 +115,8 @@
+         all(mio_unsupported_force_poll_poll, target_os = "solaris"),
+         target_os = "vita",
+         target_os = "cygwin",
+-        all(target_os = "wasi", target_env = "p1")
++        all(target_os = "wasi", target_env = "p1"),
++        target_os = "zos"
+     ), path = "waker/pipe.rs")]
+     #[cfg_attr(any(target_os = "horizon", all(target_os = "wasi", not(target_env = "p1"))), path = "waker/single_threaded.rs")]
+     mod waker;
+@@ -167,6 +169,7 @@
+             all(mio_unsupported_force_poll_poll, target_os = "solaris"),
+             target_os = "vita",
+             target_os = "cygwin",
++            target_os = "zos",
+         ),
+         not(target_os = "hermit"),
+         not(target_os = "wasi"),
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/net.rs /tmp/mio-zos-12/src/sys/unix/net.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/net.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/mio-zos-12/src/sys/unix/net.rs	2026-08-11 10:46:25.984720617 -0400
+@@ -25,6 +25,7 @@
+         target_os = "solaris",
+         target_os = "hermit",
+         target_os = "cygwin",
++        target_os = "zos",
+     ))]
+     let socket_type = socket_type | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC;
+     // WASI doesn't have the concept of `fork`ing or `exec`ing processes, so
+@@ -135,6 +136,7 @@
+                     target_os = "vita",
+                     target_os = "hermit",
+                     target_os = "nto",
++                    target_os = "zos",
+                 ))]
+                 sin_len: 0,
+                 #[cfg(target_os = "vita")]
+@@ -171,6 +173,7 @@
+                     target_os = "vita",
+                     target_os = "nto",
+                     target_os = "hermit",
++                    target_os = "zos",
+                 ))]
+                 sin6_len: 0,
+                 #[cfg(target_os = "vita")]
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/selector/poll.rs /tmp/mio-zos-12/src/sys/unix/selector/poll.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/selector/poll.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/mio-zos-12/src/sys/unix/selector/poll.rs	2026-08-11 10:57:06.225692873 -0400
+@@ -85,6 +85,28 @@
+     }
+ }
+ 
++#[cfg(not(any(target_os = "horizon", target_os = "wasi")))]
++impl std::os::fd::AsFd for Selector {
++    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
++        // Use the notify waker pipe fd as the selector's fd
++        let raw = self.state.fds.lock().unwrap()
++            .poll_fds.first()
++            .map(|pf| pf.0.fd)
++            .unwrap_or(-1);
++        unsafe { std::os::fd::BorrowedFd::borrow_raw(raw) }
++    }
++}
++
++#[cfg(not(any(target_os = "horizon", target_os = "wasi")))]
++impl std::os::fd::AsRawFd for Selector {
++    fn as_raw_fd(&self) -> std::os::fd::RawFd {
++        self.state.fds.lock().unwrap()
++            .poll_fds.first()
++            .map(|pf| pf.0.fd)
++            .unwrap_or(-1)
++    }
++}
++
+ /// Interface to poll.
+ #[derive(Debug)]
+ struct SelectorState {
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/tcp.rs /tmp/mio-zos-12/src/sys/unix/tcp.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mio-1.2.2/src/sys/unix/tcp.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/mio-zos-12/src/sys/unix/tcp.rs	2026-08-11 10:43:58.627447307 -0400
+@@ -75,6 +75,7 @@
+         target_os = "solaris",
+         target_os = "cygwin",
+         target_os = "nuttx",
++        target_os = "zos",
+     ))]
+     let stream = {
+         syscall!(accept4(

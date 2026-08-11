@@ -1,0 +1,85 @@
+# bump: uv-version /UV_VERSION="(.*)"/ https://github.com/astral-sh/uv.git|semver:*
+UV_VERSION="0.8.13"
+
+export ZOPEN_PROJECT_NAME="uv"
+export ZOPEN_NAME="uv-${UV_VERSION}"
+export ZOPEN_BUILD_LINE="STABLE"
+export ZOPEN_STABLE_URL="https://github.com/astral-sh/uv.git"
+export ZOPEN_STABLE_TAG="${UV_VERSION}"
+export ZOPEN_STABLE_TYPE="GIT"
+export ZOPEN_STABLE_DEPS=" "
+export ZOPEN_DEV_URL="https://github.com/astral-sh/uv.git"
+export ZOPEN_DEV_DEPS=""
+export ZOPEN_CATEGORIES="utilities"
+export ZOPEN_RUNTIME_DEPS="python"
+
+export ZOPEN_TYPE="BARE"
+export ZOPEN_BOOTSTRAP="skip"
+export ZOPEN_CONFIGURE="skip"
+export ZOPEN_MAKE="skip"
+export ZOPEN_CHECK="zopen_custom_check"
+export ZOPEN_INSTALL="zopen_custom_install"
+
+zopen_check_results() {
+  dir="$1"
+  pfx="$2"
+  echo "actualFailures:0"
+  echo "totalTests:1"
+  echo "expectedFailures:0"
+  echo "expectedTotalTests:1"
+}
+
+zopen_get_version() {
+  echo "${UV_VERSION}"
+}
+
+# uv 0.8.13 was cross-compiled from source (astral-sh/uv 0.8.13) on a
+# Linux-on-Power (LoP, ppc64le) host using an IBM-internal Rust cross-compiler
+# targeting s390x-ibm-zos. This is the last 0.8.x release with rust-version = "1.86",
+# matching the IBM z/OS Rust toolchain.
+#
+# Key patches applied during cross-compilation:
+#   - libc: z/OS dirent/socket/termios symbols (github.ibm.com/compiler/rust-libc)
+#   - mio 1.2.2: poll selector + pipe waker for z/OS (target_os = "zos")
+#   - socket2 0.6.5: IovLen, ip_mreqn, tv_usec_pad for z/OS
+#   - rustix 1.1.4: ioctl _Opcode, errno codes, fs syscalls for z/OS
+#   - getrandom 0.2/0.4: use_file (/dev/urandom) backend for z/OS
+#   - tokio 1.53.1: ucred get_peer_cred no-op for z/OS
+#   - fs2, goblin, uv-platform-tags: z/OS platform stubs
+#
+# Cross-compilation infrastructure and crate patches:
+#   https://github.ibm.com/compiler/rust-scripts  branch: itodorov/zos-cross-compile-setup
+# All patch sources are maintained in: https://github.com/zopencommunity/uvport/tree/main/patches
+zopen_init() {
+  curl -L -o uv \
+    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv
+  chtag -b ./uv
+  chmod +x ./uv
+  curl -L -o uvx \
+    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx
+  chtag -b ./uvx
+  chmod +x ./uvx
+}
+
+zopen_custom_check() {
+  ./uv --version
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo "FAIL: uv --version returned $rc" >&2
+    exit 1
+  fi
+}
+
+zopen_custom_install() {
+  mkdir -p "${ZOPEN_INSTALL_DIR}/bin"
+  cp ./uv "${ZOPEN_INSTALL_DIR}/bin/uv"
+  chtag -b "${ZOPEN_INSTALL_DIR}/bin/uv"
+  chmod +x "${ZOPEN_INSTALL_DIR}/bin/uv"
+  cp ./uvx "${ZOPEN_INSTALL_DIR}/bin/uvx"
+  chtag -b "${ZOPEN_INSTALL_DIR}/bin/uvx"
+  chmod +x "${ZOPEN_INSTALL_DIR}/bin/uvx"
+}
+
+zopen_append_to_validate_install() {
+  echo "uv --version"
+}

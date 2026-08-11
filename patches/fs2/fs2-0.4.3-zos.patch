@@ -1,0 +1,13 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs2-0.4.3/src/unix.rs /tmp/fs2-zos/src/unix.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs2-0.4.3/src/unix.rs	2018-01-06 13:27:02.000000000 -0500
++++ /tmp/fs2-zos/src/unix.rs	2026-08-11 10:56:12.201459413 -0400
+@@ -139,7 +139,8 @@
+           target_os = "netbsd",
+           target_os = "dragonfly",
+           target_os = "solaris",
+-          target_os = "haiku"))]
++          target_os = "haiku",
++          target_os = "zos"))]
+ pub fn allocate(file: &File, len: u64) -> Result<()> {
+     // No file allocation API available, just set the length if necessary.
+     if len > try!(file.metadata()).len() as u64 {

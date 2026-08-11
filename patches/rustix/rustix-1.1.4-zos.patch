@@ -1,0 +1,1173 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/dir.rs /tmp/rustix-zos-114/src/backend/libc/fs/dir.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/dir.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/backend/libc/fs/dir.rs	2026-08-11 10:49:13.210392119 -0400
+@@ -199,14 +199,26 @@
+                 check_dirent_layout(dirent);
+ 
+                 let result = DirEntry {
+-                    #[cfg(not(any(
+-                        solarish,
+-                        target_os = "aix",
+-                        target_os = "haiku",
+-                        target_os = "nto",
+-                        target_os = "vita"
+-                    )))]
+-                    d_type: dirent.d_type,
++                    d_type: {
++                        #[cfg(not(any(
++                            solarish,
++                            target_os = "aix",
++                            target_os = "haiku",
++                            target_os = "nto",
++                            target_os = "vita",
++                            target_os = "zos"
++                        )))]
++                        { dirent.d_type }
++                        #[cfg(any(
++                            solarish,
++                            target_os = "aix",
++                            target_os = "haiku",
++                            target_os = "nto",
++                            target_os = "vita",
++                            target_os = "zos"
++                        ))]
++                        { c::DT_UNKNOWN }
++                    },
+ 
+                     #[cfg(not(any(freebsdlike, netbsdlike, target_os = "vita")))]
+                     d_ino: dirent.d_ino,
+@@ -317,13 +329,7 @@
+ /// `struct dirent`
+ #[derive(Debug)]
+ pub struct DirEntry {
+-    #[cfg(not(any(
+-        solarish,
+-        target_os = "aix",
+-        target_os = "haiku",
+-        target_os = "nto",
+-        target_os = "vita"
+-    )))]
++    // d_type: z/OS dirent has no d_type; always report DT_UNKNOWN
+     d_type: u8,
+ 
+     #[cfg(not(any(freebsdlike, netbsdlike, target_os = "vita")))]
+@@ -374,7 +380,8 @@
+         target_os = "aix",
+         target_os = "haiku",
+         target_os = "nto",
+-        target_os = "vita"
++        target_os = "vita",
++        target_os = "zos"
+     )))]
+     #[inline]
+     pub fn file_type(&self) -> FileType {
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/makedev.rs /tmp/rustix-zos-114/src/backend/libc/fs/makedev.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/makedev.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/backend/libc/fs/makedev.rs	2026-08-11 10:49:33.649469244 -0400
+@@ -12,6 +12,7 @@
+     apple,
+     solarish,
+     target_os = "aix",
++    target_os = "zos",
+     target_os = "android",
+     target_os = "emscripten",
+ )))]
+@@ -58,10 +59,10 @@
+     unsafe { c::makedev(maj as i32, min as i32) }
+ }
+ 
+-#[cfg(target_os = "aix")]
++#[cfg(any(target_os = "aix", target_os = "zos"))]
+ #[inline]
+ pub(crate) fn makedev(maj: u32, min: u32) -> Dev {
+-    // AIX's `makedev` oddly is `unsafe`.
++    // AIX/z/OS `makedev` is `unsafe`.
+     unsafe { c::makedev(maj, min) }
+ }
+ 
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/types.rs /tmp/rustix-zos-114/src/backend/libc/fs/types.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/fs/types.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/backend/libc/fs/types.rs	2026-08-11 10:47:27.110468818 -0400
+@@ -376,6 +376,8 @@
+         /// functions, use [`rustix::fs::fcntl_setfl`] instead.
+         #[cfg(not(any(
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "espidf",
+             target_os = "haiku",
+@@ -617,6 +619,8 @@
+     #[cfg(not(any(
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "nto",
+@@ -781,6 +785,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "wasi",
+@@ -791,6 +797,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "wasi",
+@@ -801,6 +809,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "emscripten",
+             target_os = "fuchsia",
+@@ -816,6 +826,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -827,6 +839,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -838,6 +852,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -849,6 +865,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "emscripten",
+@@ -879,6 +897,8 @@
+         #[cfg(any(
+             linux_kernel,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "fuchsia"
+         ))]
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/io/errno.rs /tmp/rustix-zos-114/src/backend/libc/io/errno.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/io/errno.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/backend/libc/io/errno.rs	2026-08-11 11:00:54.049604904 -0400
+@@ -49,6 +49,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -74,6 +76,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -90,6 +94,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -107,6 +113,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -124,6 +132,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -138,6 +148,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -152,6 +164,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -183,7 +197,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const CHRNG: Self = Self(c::ECHRNG);
+     /// `ECOMM`
+@@ -191,6 +206,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -214,6 +231,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -241,6 +260,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -275,6 +296,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "cygwin",
+         target_os = "espidf",
+@@ -327,6 +350,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -344,6 +369,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -361,6 +388,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -378,6 +407,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -399,7 +430,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L2HLT: Self = Self(c::EL2HLT);
+     /// `EL2NSYNC`
+@@ -412,7 +444,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L2NSYNC: Self = Self(c::EL2NSYNC);
+     /// `EL3HLT`
+@@ -425,7 +458,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L3HLT: Self = Self(c::EL3HLT);
+     /// `EL3RST`
+@@ -438,7 +472,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const L3RST: Self = Self(c::EL3RST);
+     /// `ELIBACC`
+@@ -446,6 +481,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -460,6 +497,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -474,6 +513,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -487,6 +528,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -501,6 +544,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -520,7 +565,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const LNRNG: Self = Self(c::ELNRNG);
+     /// `ELOOP`
+@@ -531,6 +577,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -561,6 +609,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -590,6 +640,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -615,7 +667,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOCSI: Self = Self(c::ENOCSI);
+     /// `ENODATA`
+@@ -625,6 +678,7 @@
+         target_os = "haiku",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NODATA: Self = Self(c::ENODATA);
+     /// `ENODEV`
+@@ -642,6 +696,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -665,6 +721,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -689,6 +747,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -703,6 +763,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -726,6 +788,7 @@
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOSR: Self = Self(c::ENOSR);
+     /// `ENOSTR`
+@@ -736,6 +799,7 @@
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOSTR: Self = Self(c::ENOSTR);
+     /// `ENOSYS`
+@@ -748,7 +812,8 @@
+         target_os = "haiku",
+         target_os = "horizon",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const NOTBLK: Self = Self(c::ENOTBLK);
+     /// `ENOTCAPABLE`
+@@ -767,6 +832,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -785,6 +852,7 @@
+         windows,
+         target_os = "haiku",
+         target_os = "l4re"
++        target_os = "zos",
+     )))]
+     pub const NOTRECOVERABLE: Self = Self(c::ENOTRECOVERABLE);
+     /// `ENOTSOCK`
+@@ -801,6 +869,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -825,6 +895,7 @@
+         windows,
+         target_os = "haiku",
+         target_os = "l4re"
++        target_os = "zos",
+     )))]
+     pub const OWNERDEAD: Self = Self(c::EOWNERDEAD);
+     /// `EPERM`
+@@ -871,6 +942,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -887,7 +960,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const REMOTE: Self = Self(c::EREMOTE);
+     /// `EREMOTEIO`
+@@ -896,6 +970,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -919,6 +995,7 @@
+         target_os = "l4re",
+         target_os = "vita",
+         target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const RESTART: Self = Self(c::ERESTART);
+     /// `ERFKILL`
+@@ -927,6 +1004,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "android",
+         target_os = "cygwin",
+         target_os = "espidf",
+@@ -962,7 +1041,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const SOCKTNOSUPPORT: Self = Self(c::ESOCKTNOSUPPORT);
+     /// `ESPIPE`
+@@ -976,6 +1056,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -992,6 +1074,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+@@ -1028,6 +1112,8 @@
+         solarish,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
+@@ -1049,7 +1135,8 @@
+         target_os = "hurd",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const UNATCH: Self = Self(c::EUNATCH);
+     /// `EUSERS`
+@@ -1059,7 +1146,8 @@
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+-        target_os = "wasi"
++        target_os = "wasi",
++        target_os = "zos",
+     )))]
+     pub const USERS: Self = Self(c::EUSERS);
+     /// `EWOULDBLOCK`
+@@ -1072,6 +1160,8 @@
+         bsd,
+         windows,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "espidf",
+         target_os = "haiku",
+         target_os = "horizon",
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/io/syscalls.rs /tmp/rustix-zos-114/src/backend/libc/io/syscalls.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/backend/libc/io/syscalls.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/backend/libc/io/syscalls.rs	2026-08-11 10:47:27.115494596 -0400
+@@ -7,6 +7,8 @@
+ use crate::fd::{AsFd as _, BorrowedFd, OwnedFd, RawFd};
+ #[cfg(not(any(
+     target_os = "aix",
++
++    target_os = "zos",
+     target_os = "espidf",
+     target_os = "nto",
+     target_os = "vita",
+@@ -267,6 +269,8 @@
+ #[cfg(not(any(
+     apple,
+     target_os = "aix",
++
++    target_os = "zos",
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "espidf",
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/ioctl/mod.rs /tmp/rustix-zos-114/src/ioctl/mod.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/ioctl/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/ioctl/mod.rs	2026-08-11 10:50:22.243859569 -0400
+@@ -324,10 +324,11 @@
+ ))]
+ type _Opcode = c::c_ulong;
+ 
+-// AIX, Emscripten, Fuchsia, Solaris, and WASI use a `int`.
++// AIX, Emscripten, Fuchsia, Solaris, WASI, and z/OS use a `int`.
+ #[cfg(any(
+     solarish,
+     target_os = "aix",
++    target_os = "zos",
+     target_os = "cygwin",
+     target_os = "fuchsia",
+     target_os = "emscripten",
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/termios/types.rs /tmp/rustix-zos-114/src/termios/types.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rustix-1.1.4/src/termios/types.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/rustix-zos-114/src/termios/types.rs	2026-08-11 10:47:27.118705435 -0400
+@@ -275,7 +275,8 @@
+         const ICRNL = c::ICRNL;
+ 
+         /// `IUCLC`
+-        #[cfg(any(linux_raw_dep, solarish, target_os = "aix", target_os = "haiku", target_os = "nto"))]
++        #[cfg(any(linux_raw_dep, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "nto"))]
+         const IUCLC = c::IUCLC;
+ 
+         /// `IXON`
+@@ -298,6 +299,8 @@
+             netbsdlike,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "haiku",
+             target_os = "hurd",
+@@ -323,6 +326,8 @@
+             apple,
+             freebsdlike,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "netbsd",
+             target_os = "redox",
+         )))]
+@@ -458,6 +463,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "haiku",
+             target_os = "redox",
+         )))]
+@@ -578,6 +585,8 @@
+             bsd,
+             solarish,
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "emscripten",
+             target_os = "haiku",
+             target_os = "hurd",
+@@ -623,6 +632,8 @@
+         /// `EXTPROC`
+         #[cfg(not(any(
+             target_os = "aix",
++
++            target_os = "zos",
+             target_os = "cygwin",
+             target_os = "haiku",
+             target_os = "nto",
+@@ -741,6 +752,8 @@
+     #[cfg(not(any(
+         apple,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "dragonfly",
+         target_os = "haiku",
+         target_os = "openbsd"
+@@ -748,17 +761,21 @@
+     pub const B460800: u32 = 460_800;
+ 
+     /// `B500000`
+-    #[cfg(not(any(bsd, solarish, target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(any(bsd, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku")))]
+     pub const B500000: u32 = 500_000;
+ 
+     /// `B576000`
+-    #[cfg(not(any(bsd, solarish, target_os = "aix", target_os = "haiku")))]
++    #[cfg(not(any(bsd, solarish, target_os = "aix",
++ target_os = "zos", target_os = "haiku")))]
+     pub const B576000: u32 = 576_000;
+ 
+     /// `B921600`
+     #[cfg(not(any(
+         apple,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "dragonfly",
+         target_os = "haiku",
+         target_os = "openbsd"
+@@ -766,19 +783,23 @@
+     pub const B921600: u32 = 921_600;
+ 
+     /// `B1000000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1000000: u32 = 1_000_000;
+ 
+     /// `B1152000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1152000: u32 = 1_152_000;
+ 
+     /// `B1500000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B1500000: u32 = 1_500_000;
+ 
+     /// `B2000000`
+-    #[cfg(not(any(bsd, target_os = "aix", target_os = "haiku", target_os = "solaris")))]
++    #[cfg(not(any(bsd, target_os = "aix",
++ target_os = "zos", target_os = "haiku", target_os = "solaris")))]
+     pub const B2000000: u32 = 2_000_000;
+ 
+     /// `B2500000`
+@@ -787,6 +808,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -798,6 +821,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -809,6 +834,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -820,6 +847,8 @@
+         target_arch = "sparc64",
+         bsd,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "solaris",
+     )))]
+@@ -868,6 +897,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -878,6 +909,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -886,6 +919,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -893,6 +928,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -902,6 +939,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -910,6 +949,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -918,6 +959,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -926,6 +969,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -936,6 +981,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -946,6 +993,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -956,6 +1005,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -967,6 +1018,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1007,6 +1060,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1017,6 +1072,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -1025,6 +1082,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto"
+             )))]
+@@ -1032,6 +1091,8 @@
+             #[cfg(not(any(
+                 apple,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "dragonfly",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1041,6 +1102,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1049,6 +1112,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1057,6 +1122,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1065,6 +1132,8 @@
+             #[cfg(not(any(
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris"
+@@ -1075,6 +1144,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -1085,6 +1156,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "nto",
+                 target_os = "solaris",
+@@ -1095,6 +1168,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1106,6 +1181,8 @@
+                 target_arch = "sparc64",
+                 bsd,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "cygwin",
+                 target_os = "haiku",
+                 target_os = "nto",
+@@ -1210,6 +1287,8 @@
+         bsd,
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "haiku",
+         target_os = "hurd",
+         target_os = "nto",
+@@ -1256,6 +1335,8 @@
+         bsd,
+         solarish,
+         target_os = "aix",
++
++        target_os = "zos",
+         target_os = "hurd",
+         target_os = "nto"
+     ))]
+@@ -1281,6 +1362,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VEOF => write!(f, "VEOF"),
+@@ -1288,6 +1371,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VTIME => write!(f, "VTIME"),
+@@ -1295,6 +1380,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VMIN => write!(f, "VMIN"),
+@@ -1305,6 +1392,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             ))]
+             Self::VMIN => write!(f, "VMIN/VEOF"),
+@@ -1312,6 +1401,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             ))]
+             Self::VTIME => write!(f, "VTIME/VEOL"),
+@@ -1320,6 +1411,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+                 target_os = "hurd",
+                 target_os = "nto",
+@@ -1332,6 +1425,8 @@
+                 solarish,
+                 all(linux_kernel, any(target_arch = "sparc", target_arch = "sparc64")),
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "haiku",
+             )))]
+             Self::VEOL => write!(f, "VEOL"),
+@@ -1350,6 +1445,8 @@
+                 bsd,
+                 solarish,
+                 target_os = "aix",
++
++                target_os = "zos",
+                 target_os = "hurd",
+                 target_os = "nto"
+             ))]

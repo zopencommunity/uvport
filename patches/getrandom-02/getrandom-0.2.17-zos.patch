@@ -1,0 +1,24 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.2.17/src/lib.rs /tmp/getrandom-02-zos/src/lib.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.2.17/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/getrandom-02-zos/src/lib.rs	2026-08-11 10:07:49.155802535 -0400
+@@ -235,7 +235,7 @@
+ // The function MUST NOT ever write uninitialized bytes into `dest`,
+ // regardless of what value it returns.
+ cfg_if! {
+-    if #[cfg(any(target_os = "haiku", target_os = "redox", target_os = "nto", target_os = "aix"))] {
++    if #[cfg(any(target_os = "haiku", target_os = "redox", target_os = "nto", target_os = "aix", target_os = "zos"))] {
+         mod util_libc;
+         #[path = "use_file.rs"] mod imp;
+     } else if #[cfg(any(
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.2.17/src/util_libc.rs /tmp/getrandom-02-zos/src/util_libc.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.2.17/src/util_libc.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/getrandom-02-zos/src/util_libc.rs	2026-08-11 10:45:44.411899697 -0400
+@@ -9,7 +9,7 @@
+ use libc::c_void;
+ 
+ cfg_if! {
+-    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin"))] {
++    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin", target_os = "zos"))] {
+         use libc::__errno as errno_location;
+     } else if #[cfg(any(target_os = "linux", target_os = "emscripten", target_os = "hurd", target_os = "redox", target_os = "dragonfly"))] {
+         use libc::__errno_location as errno_location;

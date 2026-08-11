@@ -1,0 +1,26 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/socket2-0.6.5/src/sys/unix.rs /tmp/socket2-zos-065/src/sys/unix.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/socket2-0.6.5/src/sys/unix.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/socket2-zos-065/src/sys/unix.rs	2026-08-11 10:55:16.635936249 -0400
+@@ -434,6 +434,7 @@
+     target_os = "espidf",
+     target_os = "vita",
+     target_os = "cygwin",
++    target_os = "zos",
+ ))]
+ type IovLen = c_int;
+ #[cfg(target_os = "nuttx")]
+@@ -1252,10 +1253,14 @@
+         #[cfg_attr(target_env = "musl", allow(deprecated))]
+         Some(duration) => libc::timeval {
+             tv_sec: min(duration.as_secs(), libc::time_t::MAX as u64) as libc::time_t,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+             tv_usec: duration.subsec_micros() as libc::suseconds_t,
+         },
+         None => libc::timeval {
+             tv_sec: 0,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+             tv_usec: 0,
+         },
+     }
