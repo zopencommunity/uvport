@@ -66,27 +66,6 @@ uv sync
 | 0.8.14–0.8.18 | 1.87 | ❌ |
 | 0.8.19+ | 1.88 | ❌ |
 
-## Cross-compilation
-
-uv 0.8.13 is cross-compiled on Linux-on-Power (ppc64le) using an IBM Rust toolchain
-targeting `s390x-ibm-zos`. The build infrastructure lives in:
-<https://github.ibm.com/compiler/rust-scripts> branch `itodorov/zos-cross-compile-setup`
-
-### Architecture
-
-```
-LoP (Linux ppc64le)                   z/OS (s390x)
-─────────────────────                 ─────────────
-rustc 1.86 (nightly)
-  + s390x-ibm-zos target    ──HTTP──► Flask server
-  + ibm-clang wrapper                 ibm-clang + /bin/ld
-  + llvm-ar (GOFF archives)           builds .so / executables
-```
-
-The `cross/` directory in rust-scripts contains:
-- `client.py` — intercepts `cc`/`ar` calls from cargo, sends to z/OS server
-- `server.py` — Flask server on z/OS, runs ibm-clang, caches objects
-- `s390x-ibm-zos-cc` — cc wrapper that handles LTO, rlib extraction, GOFF
 
 ### Proc-macro workaround
 
