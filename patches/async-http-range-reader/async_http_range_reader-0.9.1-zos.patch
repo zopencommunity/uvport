@@ -1,0 +1,18 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async_http_range_reader-0.9.1/Cargo.toml /tmp/async_http_range_reader-zos/Cargo.toml
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/async_http_range_reader-0.9.1/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/async_http_range_reader-zos/Cargo.toml	2026-08-11 16:02:39.176244228 -0400
+@@ -50,10 +50,12 @@
+ default-features = false
+ 
+ [dependencies.reqwest-middleware]
+-version = "0.4.0"
++git = "https://github.com/astral-sh/reqwest-middleware"
++rev = "ad8b9d332d1773fde8b4cd008486de5973e0a3f8"
++features = []
+ 
+ [dependencies.thiserror]
+-version = "1.0.50"
++version = "2"
+ 
+ [dependencies.tokio]
+ version = "1.33.0"

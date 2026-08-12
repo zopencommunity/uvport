@@ -1,138 +1,201 @@
 # Patches for uv 0.8.13 z/OS port
 
 All patches are generated with `diff -ruN <orig>/ <patched>/` against the
-crates.io registry version of each crate.
+crates.io registry version of each crate (or the upstream git commit used by uv).
 
-To apply during build: set `[patch.crates-io]` entries in uv's `Cargo.toml`
-pointing to local directories where the patches have been applied.
-
----
-
-## libc — `patches/libc/libc-0.2.186-zos.patch`
-
-**Why**: The IBM libc fork (`github.ibm.com/compiler/rust-libc`) already has
-extensive z/OS support, but is missing symbols needed by uv's dependency tree.
-We add:
-
-- `ip_mreqn` struct (for socket2 multicast)
-- `IP_HDRINCL`, `IP_RECVTOS`, `TCP_KEEPIDLE`, `IPV6_ADD_MEMBERSHIP`, `IPV6_DROP_MEMBERSHIP`
-- `O_DSYNC`, `O_ASYNC` (stub = 0)
-- `DT_REG`, `DT_DIR`, `DT_LNK`, `DT_BLK`, `DT_CHR`, `DT_SOCK`, `DT_FIFO`, `DT_UNKNOWN` (for rustix dir iterator)
-- `POSIX_FADV_*` constants
-- High baud rates: `B57600` through `B4000000`
-- Extended termios: `ECHOCTL`, `ECHOPRT`, `ECHOKE`, `EXTPROC`, `CRTSCTS`, `CMSPAR`, `IUTF8`, `IMAXBEL`
-- Extra VXXX indices: `VDISCARD`, `VEOL2`, `VLNEXT`, `VREPRINT`, `VSWTC`, `VWERASE`
-- `fsid_t` struct
-- `DT_*` constants (dirent type, z/OS dirent has no `d_type` so always `DT_UNKNOWN`)
-- Functions: `preadv`, `pwritev`, `futimens`, `posix_fadvise`, `posix_fallocate`, `major`, `minor`, `makedev`
+To reproduce the build, apply each patch to a local copy of the crate and add
+`[patch.crates-io]` entries in uv's `Cargo.toml` pointing to those directories.
 
 ---
 
-## mio — `patches/mio/mio-1.2.2-zos.patch`
+## Core OS / libc
 
-**Why**: mio 1.2.2 routes unknown unix targets to a compile error. z/OS uses:
-- **Selector**: `poll(2)`-based (same as AIX/NTO/Haiku)
-- **Waker**: `pipe(2)`-based (same as AIX/Dragonfly/OpenBSD)
+### libc — `patches/libc/`
 
-Changes:
-- `src/sys/unix/mod.rs`: add `target_os = "zos"` to poll selector, pipe waker, and pipe module cfg lists
-- `src/sys/unix/net.rs`: add `target_os = "zos"` to `SOCK_NONBLOCK | SOCK_CLOEXEC` support; add `sin_len`/`sin6_len` (z/OS has BSD-style socket structs)
-- `src/sys/unix/tcp.rs`: add `target_os = "zos"` to `accept4()` support list
-- `src/sys/unix/selector/poll.rs`: add `AsFd`/`AsRawFd` impl for `Selector` (required by mio's `Registry`)
+See [`patches/libc/README.md`](libc/README.md).  
+Uses **github.ibm.com/compiler/rust-libc** branch `zOS.0.2.169` (IBM internal fork).  
+No crates.io diff available; the fork adds a complete `src/unix/zos/` module.
 
 ---
 
-## socket2 — `patches/socket2/socket2-0.6.5-zos.patch`
+## Async I/O
 
-**Why**: socket2 has no z/OS case for `IovLen` type or struct initializers.
+### mio — `patches/mio/mio-1.2.2-zos.patch`
 
-Changes:
-- `src/sys/unix.rs`: add `target_os = "zos"` to `IovLen = c_int` block
-- `src/sys/unix.rs`: add `#[cfg(target_os = "zos")] tv_usec_pad: 0` in `into_timeval()` struct literals (z/OS `timeval` has a padding field)
+**Why**: mio 1.2.2 has no z/OS selector/waker.  
+**Changes**: add `target_os = "zos"` to poll selector, pipe waker, tcp/net; add `AsFd`/`AsRawFd` for `Selector`.
 
----
+### tokio — `patches/tokio/tokio-1.53.1-zos.patch`
 
-## rustix — `patches/rustix/rustix-1.1.4-zos.patch`
+**Why**: `get_peer_cred` uses `SO_PEERCRED` which z/OS lacks.  
+**Changes**: add `target_os = "zos"` to `impl_noproc` group in `ucred.rs`.
 
-**Why**: rustix 1.1.4 has no z/OS support at all.
+### async_http_range_reader — `patches/async-http-range-reader/async_http_range_reader-0.9.1-zos.patch`
 
-Changes:
-- `src/ioctl/mod.rs`: add z/OS to `_Opcode = c_int` block (same as AIX/Solaris)
-- `src/backend/libc/io/errno.rs`: add `target_os = "zos"` to exclusion lists for ~40 Linux-specific errno codes (`ECHRNG`, `EL2*`, `EL3*`, `ELIB*`, `EHWPOISON`, etc.)
-- `src/backend/libc/fs/types.rs`: add z/OS to exclusion lists for `FALLOC_FL_*`, `O_DSYNC`, `O_ASYNC`; add z/OS to `DT_*` usage (stub `DT_UNKNOWN`)
-- `src/backend/libc/fs/dir.rs`: handle missing `d_type` field on z/OS dirent; always return `DT_UNKNOWN`
-- `src/backend/libc/fs/makedev.rs`: add z/OS to unsafe makedev/major/minor path (same as AIX)
-- `src/backend/libc/fs/syscalls.rs`: add z/OS to exclusion lists (aix pattern)
-- `src/backend/libc/io/syscalls.rs`: z/OS now has preadv/pwritev (added to libc)
-- `src/termios/types.rs`: add z/OS to exclusion lists for aix-like constants
+**Why**: depends on thiserror v1; conflicts with our thiserror v2 redirect.  
+**Changes**: `Cargo.toml` thiserror dependency → v2.
 
----
+### rs-async-zip — `patches/rs-async-zip/rs-async-zip-git-zos.patch`
 
-## getrandom 0.2 — `patches/getrandom-02/getrandom-0.2.17-zos.patch`
+**Why**: depends on thiserror v1.  
+**Changes**: `Cargo.toml` thiserror dependency → v2.
 
-**Why**: getrandom 0.2 has no `/dev/urandom` backend for z/OS.
+### reqwest-middleware — `patches/reqwest-middleware/reqwest-middleware-git-zos.patch`
 
-Changes:
-- `src/lib.rs`: add `target_os = "zos"` to the `use_file` backend group (same as AIX/Haiku/NTO)
-- `src/util_libc.rs`: add `target_os = "zos"` to `__errno` branch
+**Why**: depends on thiserror v1.  
+**Changes**: `Cargo.toml` thiserror dependency → v2.
+
+### reqwest-retry — `patches/reqwest-retry/reqwest-retry-git-zos.patch`
+
+**Why**: depends on thiserror v1 and has no z/OS awareness.  
+**Changes**: `Cargo.toml` thiserror → v2; retry policy adapters.
 
 ---
 
-## getrandom 0.4 — `patches/getrandom-04/getrandom-0.4.3-zos.patch`
+## Networking / TLS
 
-**Why**: getrandom 0.4 has no `/dev/urandom` backend or `libc` dependency for z/OS.
+### socket2 — `patches/socket2/socket2-0.6.5-zos.patch`
 
-Changes:
-- `src/backends.rs`: add `target_os = "zos"` to `use_file` backend group
-- `src/utils/get_errno.rs`: add `target_os = "zos"` to `__errno` branch
-- `Cargo.toml`: add z/OS to the `libc` conditional dependency cfg
+**Why**: no z/OS `IovLen` type or `timeval` padding field.  
+**Changes**: add `target_os = "zos"` to `IovLen = c_int` block; add `tv_usec_pad: 0` in `into_timeval()`.
 
----
+### ring — `patches/ring/ring-0.17.14-zos.patch`
 
-## tokio — `patches/tokio/tokio-1.53.1-zos.patch`
+**Why**: ring's C sources use Linux/MSVC-specific headers and `__int128_t`.  
+**Changes**: add z/OS guards in `build.rs`; fix `__int128_t`/`__uint128_t` typedefs in `crypto/internal.h`; add `s390x-ibm-zos` to GOFF arch detection.
 
-**Why**: tokio's Unix socket credential API (`get_peer_cred`) has no z/OS implementation.
-z/OS lacks `SO_PEERCRED`.
+### zeroize — `patches/zeroize/zeroize-1.8.1-zos.patch`
 
-Changes:
-- `src/net/unix/ucred.rs`: add `target_os = "zos"` to `impl_noproc` group (returns `ENOSYS`)
+**Why**: zeroize uses x86/aarch64-specific volatile write intrinsics.  
+**Changes**: add `src/barrier.rs` with a portable memory barrier; add z/OS to fallback path.
 
 ---
 
-## fs2 — `patches/fs2/fs2-0.4.3-zos.patch`
+## Filesystem / System
 
-**Why**: fs2's `allocate()` has no z/OS fallback.
+### rustix — `patches/rustix/rustix-1.1.4-zos.patch`
 
-Changes:
-- `src/unix.rs`: add `target_os = "zos"` to the no-op `allocate()` group (same as OpenBSD/NetBSD)
+**Why**: rustix 1.1.4 has no z/OS support.  
+**Changes**: `_Opcode = c_int`; errno exclusions; `d_type` stub; `DT_*` constants; `makedev`; `preadv`/`pwritev`; termios exclusions.
+
+### filetime — `patches/filetime/filetime-0.2.25-zos.patch`
+
+**Why**: `utimes`/`futimens` path gated on Linux/macOS/etc.  
+**Changes**: add `target_os = "zos"` to `futimens` and `utimes` call sites.
+
+### fs2 — `patches/fs2/fs2-0.4.3-zos.patch`
+
+**Why**: `allocate()` has no z/OS fallback.  
+**Changes**: add `target_os = "zos"` to no-op `allocate()` group.
+
+### jobserver — `patches/jobserver/jobserver-0.1.33-zos.patch`
+
+**Why**: jobserver uses Linux-specific pipe/fd handling.  
+**Changes**: add `target_os = "zos"` to POSIX pipe-based jobserver path.
+
+### sys-info — `patches/sys-info/sys-info-0.9.1-zos.patch`
+
+**Why**: `build.rs` and `lib.rs` don't recognize z/OS.  
+**Changes**: add z/OS to `build.rs` (skip C compilation); add stub `os_release()` in `lib.rs`.
+
+### bzip2-sys — `patches/bzip2-sys/bzip2-sys-0.1.13-zos.patch`
+
+**Why**: `build.rs` uses pre-built static lib path for z/OS.  
+**Changes**: add z/OS branch to skip cmake; use `/tmp/zos-sysroot/bzip2/lib/libbz2.a`.
+
+### zstd-sys — `patches/zstd-sys/zstd-sys-2.0.15-zos.patch`
+
+**Why**: `build.rs` uses pre-built static lib path for z/OS.  
+**Changes**: add z/OS branch; use `/tmp/zos-sysroot/zstd/lib/libzstd.a`.
+
+### lzma-sys — `patches/lzma-sys/lzma-sys-0.1.20-zos.patch`
+
+**Why**: `build.rs` uses pre-built static lib path for z/OS.  
+**Changes**: add z/OS branch; use `/tmp/zos-sysroot/lzma/lib/liblzma.a`.
 
 ---
 
-## uv itself — `patches/uv/`
+## Entropy / Randomness
 
-In-progress patches to uv's own crates:
+### getrandom 0.2 — `patches/getrandom-02/getrandom-0.2.17-zos.patch`
 
-### `uv-platform-tags` — needs `Os::Zos`
+**Why**: no `/dev/urandom` backend for z/OS.  
+**Changes**: add `target_os = "zos"` to `use_file` backend group; fix `__errno` in `util_libc.rs`.
 
-```rust
-// crates/uv-platform-tags/src/platform.rs
-pub enum Os {
-    // ... existing variants ...
-    Zos { major: u32, release: u32, version: String },
-}
-```
+### getrandom 0.4 — `patches/getrandom-04/getrandom-0.4.3-zos.patch`
 
-With corresponding tag generation: `os390_{major}_{release}_{version}`.
+**Why**: no `/dev/urandom` backend or `libc` dep for z/OS.  
+**Changes**: add `target_os = "zos"` to `use_file` group; fix `__errno`; add `libc` dep in `Cargo.toml`.
 
-### `goblin` — ELF parsing stub for z/OS
+---
 
-goblin's ELF module is gated on `#[cfg(not(target_os = "windows"))]` but uses
-`std::io::Read` trait bounds that fail to compile for z/OS. Needs a z/OS-aware stub
-or to be excluded via `default-features = false`.
+## Cryptography / Hashing
 
-### Build scripts (ring, bzip2-sys, zstd-sys, lzma-sys)
+### ring — see above.
 
-These C libraries need their build scripts to recognize `target_os = "zos"` and
-either provide z/OS-specific C sources or disable the feature. The cross-CC wrapper
-at `/home/itodorov/rust_bld/toolchain/s390x-ibm-zos-cc` handles local clang compilation
-for `-c`/`-E` probes but the full build requires the z/OS HTTP server.
+---
+
+## IPC / Signals
+
+### ctrlc — `patches/ctrlc/ctrlc-3.4.7-zos.patch`
+
+**Why**: ctrlc uses POSIX semaphores (`sem_t`) which z/OS doesn't support.  
+**Changes**: replace semaphore-based signalling with `pipe(2)` approach for `target_os = "zos"`.
+
+### nix 0.30 — `patches/nix-030/nix-0.30.1-zos.patch`
+
+**Why**: nix 0.30.1 has partial z/OS support (errno, signal, time need fixes).  
+**Changes**: errno exclusion list; signal constants; `TimeSpec`/`TimeVal` conversions.
+
+### nix 0.31 — `patches/nix-031/nix-0.31.3-zos.patch`
+
+**Why**: nix 0.31.3 same issues.  
+**Changes**: same errno/signal/time fixes adapted for 0.31 API.
+
+---
+
+## Serialization
+
+### rkyv — `patches/rkyv/rkyv-0.8.11-zos.patch`
+
+**Why**: rkyv requires `big_endian` feature on big-endian targets but doesn't auto-detect.  
+**Changes**: add `build.rs` that auto-enables `big_endian` cfg when `CARGO_CFG_TARGET_ENDIAN=big`.
+
+---
+
+## Platform / Target Detection
+
+### target-lexicon — `patches/target-lexicon/target-lexicon-0.13.2-zos.patch`
+
+**Why**: `s390x-ibm-zos` not recognized as a valid target triple.  
+**Changes**: add `OperatingSystem::Zos`; add `s390x-ibm-zos` parsing in `Triple::from_str`.
+
+---
+
+## Misc
+
+### rust-netrc — `patches/rust-netrc/rust-netrc-0.1.2-zos.patch`
+
+**Why**: minor z/OS path compatibility.  
+**Changes**: minimal `Cargo.toml` adjustment.
+
+### ignore — `patches/ignore/ignore-0.4.33-zos.patch`
+
+**Why**: `rust-version = "1.88"` in `Cargo.toml` blocks build; `src/incremental.rs` uses
+`&& let` chains (stabilized in 1.88).  
+**Changes**: remove `rust-version`; rewrite two `let` chains for 1.86 compat.
+
+### globset — `patches/globset/globset-0.4.20-zos.patch`
+
+**Why**: `rust-version = "1.88"`.  
+**Changes**: remove `rust-version` from `Cargo.toml`.
+
+### cargo-util — `patches/cargo-util/cargo-util-0.2.30-zos.patch`
+
+**Why**: `rust-version = "1.94"` and minor path handling.  
+**Changes**: remove `rust-version`; add z/OS to `paths.rs`.
+
+### home — `patches/home/home-0.5.12-zos.patch`
+
+**Why**: `rust-version = "1.88"`.  
+**Changes**: remove `rust-version` from `Cargo.toml`.

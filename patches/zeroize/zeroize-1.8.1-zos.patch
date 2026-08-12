@@ -1,0 +1,861 @@
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/aarch64.rs /tmp/zeroize-zos/src/aarch64.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/aarch64.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/zeroize-zos/src/aarch64.rs	2026-08-11 16:15:33.614382136 -0400
+@@ -1,6 +1,6 @@
+ //! [`Zeroize`] impls for ARM64 SIMD registers.
+ 
+-use crate::{atomic_fence, volatile_write, Zeroize};
++use crate::{Zeroize, optimization_barrier, volatile_write};
+ 
+ use core::arch::aarch64::*;
+ 
+@@ -11,7 +11,7 @@
+                 #[inline]
+                 fn zeroize(&mut self) {
+                     volatile_write(self, unsafe { core::mem::zeroed() });
+-                    atomic_fence();
++                    optimization_barrier(self);
+                 }
+             }
+         )+
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/barrier.rs /tmp/zeroize-zos/src/barrier.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/barrier.rs	1969-12-31 19:00:00.000000000 -0500
++++ /tmp/zeroize-zos/src/barrier.rs	2026-08-11 16:15:47.380473121 -0400
+@@ -0,0 +1,104 @@
++/// Observe the referenced data and prevent the compiler from removing previous writes to it.
++///
++/// This function acts like [`core::hint::black_box`] but takes a reference and
++/// does not return the passed value.
++///
++/// It's implemented using the [`core::arch::asm!`] macro on target arches where `asm!` is stable,
++/// i.e. `aarch64`, `arm`, `arm64ec`, `loongarch64`, `riscv32`, `riscv64`, `s390x`, `x86`, and
++/// `x86_64`.
++///
++/// On all other targets it's implemented using [`core::hint::black_box`] and custom `black_box`
++/// implemented using `#[inline(never)]` and `read_volatile`.
++///
++/// # Examples
++/// ```
++/// use core::num::NonZeroU32;
++/// use zeroize::{ZeroizeOnDrop, zeroize_flat_type};
++///
++/// # type ThirdPartyType = u32;
++///
++/// struct DataToZeroize {
++///     buf: [u8; 32],
++///     // `ThirdPartyType` can be a type with private fields
++///     // defined in a third-party crate and which does not implement
++///     // `Zeroize` or zeroization on drop.
++///     data: ThirdPartyType,
++///     pos: NonZeroU32,
++/// }
++///
++/// struct SomeMoreFlatData(u64);
++///
++/// impl Drop for DataToZeroize {
++///     fn drop(&mut self) {
++///         self.buf = [0u8; 32];
++///         self.data = ThirdPartyType::default();
++///         self.pos = NonZeroU32::new(32).unwrap();
++///         zeroize::optimization_barrier(self);
++///     }
++/// }
++///
++/// impl zeroize::ZeroizeOnDrop for DataToZeroize {}
++///
++/// let mut data = DataToZeroize {
++///     buf: [3u8; 32],
++///     data: ThirdPartyType::default(),
++///     pos: NonZeroU32::new(32).unwrap(),
++/// };
++///
++/// // data gets zeroized when dropped
++/// ```
++///
++/// Note that erasure of `ThirdPartyType` demonstrated above can be fragile if it contains
++/// `MaybeUninit` or `union` data. It also does not perform erasure of types like `Box` or `Vec`.
++pub fn optimization_barrier<T: ?Sized>(val: &T) {
++    #[cfg(all(
++        not(miri),
++        not(target_os = "zos"),
++        any(
++            target_arch = "aarch64",
++            target_arch = "arm",
++            target_arch = "arm64ec",
++            target_arch = "loongarch64",
++            target_arch = "riscv32",
++            target_arch = "riscv64",
++            target_arch = "s390x",
++            target_arch = "x86",
++            target_arch = "x86_64",
++        )
++    ))]
++    unsafe {
++        core::arch::asm!(
++            "# {}",
++            in(reg) core::ptr::from_ref::<T>(val).cast::<()>(),
++            options(readonly, preserves_flags, nostack),
++        );
++    }
++    #[cfg(not(all(
++        not(miri),
++        not(target_os = "zos"),
++        any(
++            target_arch = "aarch64",
++            target_arch = "arm",
++            target_arch = "arm64ec",
++            target_arch = "loongarch64",
++            target_arch = "riscv32",
++            target_arch = "riscv64",
++            target_arch = "s390x",
++            target_arch = "x86",
++            target_arch = "x86_64",
++        )
++    )))]
++    {
++        /// Custom version of `core::hint::black_box` implemented using
++        /// `#[inline(never)]` and `read_volatile`.
++        #[inline(never)]
++        fn custom_black_box(p: *const u8) {
++            let _ = unsafe { core::ptr::read_volatile(p) };
++        }
++
++        core::hint::black_box(val);
++        if size_of_val(val) > 0 {
++            custom_black_box(core::ptr::from_ref(val).cast::<u8>());
++        }
++    }
++}
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/lib.rs /tmp/zeroize-zos/src/lib.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/zeroize-zos/src/lib.rs	2026-08-11 16:15:33.614382136 -0400
+@@ -1,54 +1,39 @@
+ #![no_std]
+-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
++#![cfg_attr(docsrs, feature(doc_cfg))]
++#![doc = include_str!("../README.md")]
+ #![doc(
+     html_logo_url = "https://raw.githubusercontent.com/RustCrypto/media/6ee8e381/logo.svg",
+     html_favicon_url = "https://raw.githubusercontent.com/RustCrypto/media/6ee8e381/logo.svg"
+ )]
+-#![warn(missing_docs, rust_2018_idioms, unused_qualifications)]
++#![allow(clippy::undocumented_unsafe_blocks, reason = "TODO")]
+ 
+-//! Securely zero memory with a simple trait ([`Zeroize`]) built on stable Rust
+-//! primitives which guarantee the operation will not be "optimized away".
+-//!
+-//! ## About
+-//!
+-//! [Zeroing memory securely is hard] - compilers optimize for performance, and
+-//! in doing so they love to "optimize away" unnecessary zeroing calls. There are
+-//! many documented "tricks" to attempt to avoid these optimizations and ensure
+-//! that a zeroing routine is performed reliably.
+-//!
+-//! This crate isn't about tricks: it uses [`core::ptr::write_volatile`]
+-//! and [`core::sync::atomic`] memory fences to provide easy-to-use, portable
+-//! zeroing behavior which works on all of Rust's core number types and slices
+-//! thereof, implemented in pure Rust with no usage of FFI or assembly.
+-//!
+-//! - No insecure fallbacks!
+-//! - No dependencies!
+-//! - No FFI or inline assembly! **WASM friendly** (and tested)!
+-//! - `#![no_std]` i.e. **embedded-friendly**!
+-//! - No functionality besides securely zeroing memory!
+-//! - (Optional) Custom derive support for zeroing complex structures
+-//!
+-//! ## Minimum Supported Rust Version
+-//!
+-//! Requires Rust **1.72** or newer.
+-//!
+-//! In the future, we reserve the right to change MSRV (i.e. MSRV is out-of-scope
+-//! for this crate's SemVer guarantees), however when we do it will be accompanied
+-//! by a minor version bump.
+-//!
+ //! ## Usage
+ //!
+-//! ```
+-//! use zeroize::Zeroize;
++//! ### Traits
+ //!
+-//! // Protip: don't embed secrets in your source code.
+-//! // This is just an example.
+-//! let mut secret = b"Air shield password: 1,2,3,4,5".to_vec();
+-//! // [ ... ] open the air shield here
++//! The [`Zeroize`] trait is the core API of this crate. It's intended to be impl'd on values that
++//! may-or-may-not contain secrets, for example the `zeroize` crate itself defines them on the
++//! core integers e.g. `u8`, `u16`, `i8`, `i16`, as well as arrays thereof. Its core API is
++//! [`Zeroize::zeroize`], a method which takes `&mut self` and writes over the type's internal
++//! memory with some placeholder value, typically some form of `0`.
++//!
++//! The [`DefaultIsZeroes`] marker trait can be impl'd on types which have a [`Default`] impl that
++//! can be used for [`Zeroize`]. Types which implement this trait receive a blanket impl of the
++//! [`Zeroize`] trait.
++//!
++//! We recommend that types which always contain secrets, and especially ones which need to maintain
++//! complex invariants, do NOT impl the [`Zeroize`] trait, but instead provide a [`Drop`] impl which
++//! takes care of erasing the secret values from memory directly. Such types can mark that they're
++//! doing this with the [`ZeroizeOnDrop`] marker trait. Note that [`ZeroizeOnDrop`] is *just* a
++//! marker trait, and making it actually work requires actually providing a [`Drop`] impl which
++//! takes care of zeroizing secrets.
++//!
++//! Why not impl [`Zeroize`] for such types, e.g. a `SecretKey` type? The problem is [`Zeroize`]
++//! would effectively leave such types in an invalid state, and a sort of use-after-zeroize
++//! condition becomes possible. For that reason, we recommend these types automatically handle
++//! zeroization in their [`Drop`] handler alone.
+ //!
+-//! // Now that we're done using the secret, zero it out.
+-//! secret.zeroize();
+-//! ```
++//! ### Supported types
+ //!
+ //! The [`Zeroize`] trait is impl'd on all of Rust's core scalar types including
+ //! integers, floats, `bool`, and `char`.
+@@ -72,7 +57,7 @@
+ //! impl [`Default`], which implements [`Zeroize`] by overwriting a value with
+ //! the default value.
+ //!
+-//! ## Custom Derive Support
++//! ### Custom Derive Support
+ //!
+ //! This crate has custom derive support for the `Zeroize` trait,
+ //! gated under the `zeroize` crate's `zeroize_derive` Cargo feature,
+@@ -133,7 +118,7 @@
+ //! # }
+ //! ```
+ //!
+-//! ## `Zeroizing<Z>`: wrapper for zeroizing arbitrary values on drop
++//! ### `Zeroizing<Z>`: wrapper for zeroizing arbitrary values on drop
+ //!
+ //! `Zeroizing<Z: Zeroize>` is a generic wrapper type that impls `Deref`
+ //! and `DerefMut`, allowing access to an inner value of type `Z`, and also
+@@ -158,26 +143,14 @@
+ //!
+ //! ## What guarantees does this crate provide?
+ //!
+-//! This crate guarantees the following:
+-//!
+-//! 1. The zeroing operation can't be "optimized away" by the compiler.
+-//! 2. All subsequent reads to memory will see "zeroized" values.
+-//!
+-//! LLVM's volatile semantics ensure #1 is true.
++//! This crate guarantees the zeroing operation can't be "optimized away" by the compiler, as
++//! ensured by LLVM's volatile semantics.
+ //!
+-//! Additionally, thanks to work by the [Unsafe Code Guidelines Working Group],
+-//! we can now fairly confidently say #2 is true as well. Previously there were
+-//! worries that the approach used by this crate (mixing volatile and
++//! Previously there were worries that the approach used by this crate (mixing volatile and
+ //! non-volatile accesses) was undefined behavior due to language contained
+ //! in the documentation for `write_volatile`, however after some discussion
+-//! [these remarks have been removed] and the specific usage pattern in this
+-//! crate is considered to be well-defined.
+-//!
+-//! Additionally this crate leverages [`core::sync::atomic::compiler_fence`]
+-//! with the strictest ordering
+-//! ([`Ordering::SeqCst`]) as a
+-//! precaution to help ensure reads are not reordered before memory has been
+-//! zeroed.
++//! within the [Unsafe Code Guidelines Working Group], [these remarks have been removed] and the
++//! specific usage pattern in this crate is considered to be well-defined.
+ //!
+ //! All of that said, there is still potential for microarchitectural attacks
+ //! (ala Spectre/Meltdown) to leak "zeroized" secrets through covert channels.
+@@ -186,30 +159,27 @@
+ //!
+ //! ## Stack/Heap Zeroing Notes
+ //!
+-//! This crate can be used to zero values from either the stack or the heap.
+-//!
+-//! However, be aware several operations in Rust can unintentionally leave
+-//! copies of data in memory. This includes but is not limited to:
+-//!
+-//! - Moves and [`Copy`]
+-//! - Heap reallocation when using [`Vec`] and [`String`]
+-//! - Borrowers of a reference making copies of the data
+-//!
+-//! [`Pin`][`core::pin::Pin`] can be leveraged in conjunction with this crate
+-//! to ensure data kept on the stack isn't moved.
++//! This crate can be used to zero values from either the stack or the heap. We recommend storing
++//! sensitive data on the heap whenever possible to reduce the potential for making copies in memory
++//! via Rust move semantics, however note that stack spilling and other optimizations may leave
++//! temporary copies of data from the heap on the stack.
++//!
++//! [`zeroize_stack`] can be used to zeroize stack memory.
++//!
++//! [`Pin`][`core::pin::Pin`] can be leveraged in conjunction with this crate to ensure data kept
++//! on the stack isn't moved.
++//!
++//! The `Zeroize` impls for `Vec`, `String` and `CString` zeroize the entire capacity of their
++//! backing buffer, but cannot guarantee copies of the data were not previously made by buffer
++//! reallocation. It's therefore important when attempting to zeroize such buffers to initialize
++//! them to the correct capacity, and take care to prevent subsequent reallocation.
+ //!
+-//! The `Zeroize` impls for `Vec`, `String` and `CString` zeroize the entire
+-//! capacity of their backing buffer, but cannot guarantee copies of the data
+-//! were not previously made by buffer reallocation. It's therefore important
+-//! when attempting to zeroize such buffers to initialize them to the correct
+-//! capacity, and take care to prevent subsequent reallocation.
+-//!
+-//! The `secrecy` crate provides higher-level abstractions for eliminating
++//! The [`secrecy`] crate provides higher-level abstractions for eliminating
+ //! usage patterns which can cause reallocations:
+ //!
+-//! <https://crates.io/crates/secrecy>
++//! [`secrecy`]: https://docs.rs/secrecy
+ //!
+-//! ## What about: clearing registers, mlock, mprotect, etc?
++//! ## What about: clearing registers, `mlock()`, `mprotect()`, etc?
+ //!
+ //! This crate is focused on providing simple, unobtrusive support for reliably
+ //! zeroing memory using the best approach possible on stable Rust.
+@@ -230,7 +200,6 @@
+ //! `unsafe` memory protection systems and just trying to make the best memory
+ //! zeroing crate available.
+ //!
+-//! [Zeroing memory securely is hard]: http://www.daemonology.net/blog/2014-09-04-how-to-zero-a-buffer.html
+ //! [Unsafe Code Guidelines Working Group]: https://github.com/rust-lang/unsafe-code-guidelines
+ //! [these remarks have been removed]: https://github.com/rust-lang/rust/pull/60972
+ //! [good cryptographic hygiene]: https://github.com/veorq/cryptocoding#clean-memory-of-secret-data
+@@ -238,7 +207,6 @@
+ 
+ #[cfg(feature = "alloc")]
+ extern crate alloc;
+-
+ #[cfg(feature = "std")]
+ extern crate std;
+ 
+@@ -250,16 +218,21 @@
+ #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+ mod x86;
+ 
++mod barrier;
++pub use barrier::optimization_barrier;
++
++mod stack;
++pub use stack::zeroize_stack;
++
+ use core::{
+     marker::{PhantomData, PhantomPinned},
+-    mem::{self, MaybeUninit},
++    mem::{MaybeUninit, size_of},
+     num::{
+-        self, NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize,
+-        NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
++        self, NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI128, NonZeroIsize, NonZeroU8,
++        NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU128, NonZeroUsize,
+     },
+     ops, ptr,
+     slice::IterMut,
+-    sync::atomic,
+ };
+ 
+ #[cfg(feature = "alloc")]
+@@ -300,7 +273,7 @@
+ {
+     fn zeroize(&mut self) {
+         volatile_write(self, Z::default());
+-        atomic_fence();
++        optimization_barrier(self);
+     }
+ }
+ 
+@@ -318,10 +291,10 @@
+     u8, u16, u32, u64, u128, usize
+ }
+ 
+-/// `PhantomPinned` is zero sized so provide a ZeroizeOnDrop implementation.
++/// `PhantomPinned` is zero sized so provide a `ZeroizeOnDrop` implementation.
+ impl ZeroizeOnDrop for PhantomPinned {}
+ 
+-/// `()` is zero sized so provide a ZeroizeOnDrop implementation.
++/// `()` is zero sized so provide a `ZeroizeOnDrop` implementation.
+ impl ZeroizeOnDrop for () {}
+ 
+ macro_rules! impl_zeroize_for_non_zero {
+@@ -334,7 +307,7 @@
+                         None => unreachable!(),
+                     };
+                     volatile_write(self, ONE);
+-                    atomic_fence();
++                    optimization_barrier(self);
+                 }
+             }
+         )+
+@@ -400,7 +373,7 @@
+             // Ensures self is None and that the value was dropped. Without the take, the drop
+             // of the (zeroized) value isn't called, which might lead to a leak or other
+             // unexpected behavior. For example, if this were Option<Vec<T>>, the above call to
+-            // zeroize would not free the allocated memory, but the the `take` call will.
++            // zeroize would not free the allocated memory, but the `take` call will.
+             self.take();
+         }
+ 
+@@ -409,10 +382,14 @@
+         //
+         // Safety:
+         //
+-        // The memory pointed to by `self` is valid for `mem::size_of::<Self>()` bytes.
++        // The memory pointed to by `self` is valid for `size_of::<Self>()` bytes.
+         // It is also properly aligned, because `u8` has an alignment of `1`.
+         unsafe {
+-            volatile_set((self as *mut Self).cast::<u8>(), 0, mem::size_of::<Self>());
++            volatile_set(
++                ptr::from_mut::<Self>(self).cast::<u8>(),
++                0,
++                size_of::<Self>(),
++            );
+         }
+ 
+         // Ensures self is overwritten with the `None` bit pattern. volatile_write can't be
+@@ -425,7 +402,7 @@
+         // done so by take().
+         unsafe { ptr::write_volatile(self, None) }
+ 
+-        atomic_fence();
++        optimization_barrier(self);
+     }
+ }
+ 
+@@ -441,7 +418,7 @@
+         // Safety:
+         // `MaybeUninit` is valid for any byte pattern, including zeros.
+         unsafe { ptr::write_volatile(self, MaybeUninit::zeroed()) }
+-        atomic_fence();
++        optimization_barrier(self);
+     }
+ }
+ 
+@@ -457,8 +434,8 @@
+ impl<Z> Zeroize for [MaybeUninit<Z>] {
+     fn zeroize(&mut self) {
+         let ptr = self.as_mut_ptr().cast::<MaybeUninit<u8>>();
+-        let size = self.len().checked_mul(mem::size_of::<Z>()).unwrap();
+-        assert!(size <= isize::MAX as usize);
++        let size = self.len().checked_mul(size_of::<Z>()).expect("overflow");
++        assert!(isize::try_from(size).is_ok());
+ 
+         // Safety:
+         //
+@@ -467,7 +444,7 @@
+         // and 0 is a valid value for `MaybeUninit<Z>`
+         // The memory of the slice should not wrap around the address space.
+         unsafe { volatile_set(ptr, MaybeUninit::zeroed(), size) }
+-        atomic_fence();
++        optimization_barrier(self);
+     }
+ }
+ 
+@@ -484,7 +461,7 @@
+     Z: DefaultIsZeroes,
+ {
+     fn zeroize(&mut self) {
+-        assert!(self.len() <= isize::MAX as usize);
++        assert!(isize::try_from(self.len()).is_ok());
+ 
+         // Safety:
+         //
+@@ -493,7 +470,7 @@
+         // `self.len()` is also not larger than an `isize`, because of the assertion above.
+         // The memory of the slice should not wrap around the address space.
+         unsafe { volatile_set(self.as_mut_ptr(), Z::default(), self.len()) };
+-        atomic_fence();
++        optimization_barrier(self);
+     }
+ }
+ 
+@@ -510,7 +487,7 @@
+     fn zeroize(&mut self) {}
+ }
+ 
+-/// [`PhantomData` is always zero sized so provide a ZeroizeOnDrop implementation.
++/// [`PhantomData` is always zero sized so provide a `ZeroizeOnDrop` implementation.
+ impl<Z> ZeroizeOnDrop for PhantomData<Z> {}
+ 
+ macro_rules! impl_zeroize_tuple {
+@@ -595,6 +572,8 @@
+ #[cfg(feature = "std")]
+ impl Zeroize for CString {
+     fn zeroize(&mut self) {
++        use core::mem;
++
+         // mem::take uses replace internally to swap the pointer
+         // Unfortunately this results in an allocation for a Box::new(&[0]) as CString must
+         // contain a trailing zero byte
+@@ -615,10 +594,14 @@
+     }
+ }
+ 
+-/// `Zeroizing` is a a wrapper for any `Z: Zeroize` type which implements a
++/// `Zeroizing` is a wrapper for any `Z: Zeroize` type which implements a
+ /// `Drop` handler which zeroizes dropped values.
++///
++/// `Zeroizing<T>` is defined with `repr(transparent)`, which means it is
++/// guaranteed to have the same physical representation as the underlying type.
+ #[derive(Debug, Default, Eq, PartialEq)]
+-pub struct Zeroizing<Z: Zeroize>(Z);
++#[repr(transparent)]
++pub struct Zeroizing<Z: Zeroize + ?Sized>(Z);
+ 
+ impl<Z> Zeroizing<Z>
+ where
+@@ -657,7 +640,7 @@
+ 
+ impl<Z> ops::Deref for Zeroizing<Z>
+ where
+-    Z: Zeroize,
++    Z: Zeroize + ?Sized,
+ {
+     type Target = Z;
+ 
+@@ -669,7 +652,7 @@
+ 
+ impl<Z> ops::DerefMut for Zeroizing<Z>
+ where
+-    Z: Zeroize,
++    Z: Zeroize + ?Sized,
+ {
+     #[inline(always)]
+     fn deref_mut(&mut self) -> &mut Z {
+@@ -680,7 +663,7 @@
+ impl<T, Z> AsRef<T> for Zeroizing<Z>
+ where
+     T: ?Sized,
+-    Z: AsRef<T> + Zeroize,
++    Z: AsRef<T> + Zeroize + ?Sized,
+ {
+     #[inline(always)]
+     fn as_ref(&self) -> &T {
+@@ -691,7 +674,7 @@
+ impl<T, Z> AsMut<T> for Zeroizing<Z>
+ where
+     T: ?Sized,
+-    Z: AsMut<T> + Zeroize,
++    Z: AsMut<T> + Zeroize + ?Sized,
+ {
+     #[inline(always)]
+     fn as_mut(&mut self) -> &mut T {
+@@ -701,28 +684,28 @@
+ 
+ impl<Z> Zeroize for Zeroizing<Z>
+ where
+-    Z: Zeroize,
++    Z: Zeroize + ?Sized,
+ {
+     fn zeroize(&mut self) {
+         self.0.zeroize();
+     }
+ }
+ 
+-impl<Z> ZeroizeOnDrop for Zeroizing<Z> where Z: Zeroize {}
++impl<Z> ZeroizeOnDrop for Zeroizing<Z> where Z: Zeroize + ?Sized {}
+ 
+ impl<Z> Drop for Zeroizing<Z>
+ where
+-    Z: Zeroize,
++    Z: Zeroize + ?Sized,
+ {
+     fn drop(&mut self) {
+-        self.0.zeroize()
++        self.0.zeroize();
+     }
+ }
+ 
+ #[cfg(feature = "serde")]
+ impl<Z> serde::Serialize for Zeroizing<Z>
+ where
+-    Z: Zeroize + serde::Serialize,
++    Z: Zeroize + serde::Serialize + ?Sized,
+ {
+     #[inline(always)]
+     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+@@ -747,14 +730,6 @@
+     }
+ }
+ 
+-/// Use fences to prevent accesses from being reordered before this
+-/// point, which should hopefully help ensure that all accessors
+-/// see zeroes after this point.
+-#[inline(always)]
+-fn atomic_fence() {
+-    atomic::compiler_fence(atomic::Ordering::SeqCst);
+-}
+-
+ /// Perform a volatile write to the destination
+ #[inline(always)]
+ fn volatile_write<T: Copy + Sized>(dst: &mut T, src: T) {
+@@ -763,11 +738,11 @@
+ 
+ /// Perform a volatile `memset` operation which fills a slice with a value
+ ///
+-/// Safety:
++/// # Safety
+ /// The memory pointed to by `dst` must be a single allocated object that is valid for `count`
+ /// contiguous elements of `T`.
+ /// `count` must not be larger than an `isize`.
+-/// `dst` being offset by `mem::size_of::<T> * count` bytes must not wrap around the address space.
++/// `dst` being offset by `size_of::<T> * count` bytes must not wrap around the address space.
+ /// Also `dst` must be properly aligned.
+ #[inline(always)]
+ unsafe fn volatile_set<T: Copy + Sized>(dst: *mut T, src: T, count: usize) {
+@@ -778,13 +753,13 @@
+         // This is safe because there is room for at least `count` objects of type `T` in the
+         // allocation pointed to by `dst`, because `count <= isize::MAX` and because
+         // `dst.add(count)` must not wrap around the address space.
+-        let ptr = dst.add(i);
++        let ptr = unsafe { dst.add(i) };
+ 
+         // Safety:
+         //
+         // This is safe, because the pointer is valid and because `dst` is well aligned for `T` and
+-        // `ptr` is an offset of `dst` by a multiple of `mem::size_of::<T>()` bytes.
+-        ptr::write_volatile(ptr, src);
++        // `ptr` is an offset of `dst` by a multiple of `size_of::<T>()` bytes.
++        unsafe { ptr::write_volatile(ptr, src) };
+     }
+ }
+ 
+@@ -837,13 +812,15 @@
+ /// ```
+ #[inline(always)]
+ pub unsafe fn zeroize_flat_type<F: Sized>(data: *mut F) {
+-    let size = mem::size_of::<F>();
++    let size = size_of::<F>();
+     // Safety:
+     //
+-    // This is safe because `mem::size_of<T>()` returns the exact size of the object in memory, and
++    // This is safe because `size_of<T>()` returns the exact size of the object in memory, and
+     // `data_ptr` points directly to the first byte of the data.
+-    volatile_set(data as *mut u8, 0, size);
+-    atomic_fence()
++    unsafe {
++        volatile_set(data.cast::<u8>(), 0, size);
++    }
++    optimization_barrier(&data);
+ }
+ 
+ /// Internal module used as support for `AssertZeroizeOnDrop`.
+@@ -867,7 +844,7 @@
+ 
+     impl<T: Zeroize + ?Sized> AssertZeroize for T {
+         fn zeroize_or_on_drop(&mut self) {
+-            self.zeroize()
++            self.zeroize();
+         }
+     }
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/stack.rs /tmp/zeroize-zos/src/stack.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/stack.rs	1969-12-31 19:00:00.000000000 -0500
++++ /tmp/zeroize-zos/src/stack.rs	2026-08-11 16:15:33.614382136 -0400
+@@ -0,0 +1,52 @@
++/// Zeroize `N` bytes of stack space.
++///
++/// Most algorithm implementations use stack to store temporary data.
++/// Such temporaries may contain sensitive information (e.g. cryptgraphic keys)
++/// and can stay on stack after the computation is finished. If an attacker
++/// is able for some reasons to read stack data freely, it may result in
++/// leaking of the sensitive data.
++///
++/// # WARNING
++/// This function requires you to estimate how much stack space is used by your
++/// sensitive computation. This can be done by tools like [`cargo-call-stack`],
++/// but note that stack usage depends on optimization level and compiler flags.
++///
++/// [`cargo-call-stack`]: https://github.com/japaric/cargo-call-stack
++///
++/// Additionally, you must annotate your sensitive function with `#[inline(never)]`.
++///
++/// For example, the following example **DOES NOT** erase stack properly:
++/// ```
++/// pub fn encrypt_data(key: &[u8; 16], data: &mut [u8]) {
++///     leaking_encryption(key, data);
++///     zeroize::zeroize_stack::<65_536>();
++/// }
++/// # fn leaking_encryption(_: &[u8; 16], _: &mut [u8]) {}
++/// ```
++/// `leaking_encryption` may get inlined and `zeroize_stack` will erase
++/// stack memory above the stack frame reserved by `encrypt_data`, i.e.
++/// it will **NOT** erase stack memory used by `leaking_encryption`.
++///
++/// You should wrap your computation in the following way:
++/// ```
++/// #[inline(never)]
++/// fn encrypt_data_inner(key: &[u8; 16], data: &mut [u8]) {
++///     leaking_encryption(key, data);
++/// }
++///
++/// pub fn encrypt_data(key: &[u8; 16], data: &mut [u8]) {
++///     encrypt_data_inner(key, data);
++///     zeroize::zeroize_stack::<65_536>();
++/// }
++/// # fn leaking_encryption(_: &[u8; 16], _: &mut [u8]) {}
++/// ```
++/// Finally, note that `#[inline(never)]` is just a hint and may be ignored
++/// by the compiler. It works properly in practice, but such stack zeroization
++/// should be considered as "best effort" and in cases where it's not enough
++/// you should inspect the generated binary to verify that you got a desired
++/// codegen.
++#[inline(never)]
++pub fn zeroize_stack<const N: usize>() {
++    let buf = [0u8; N];
++    crate::optimization_barrier(&buf);
++}
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/x86.rs /tmp/zeroize-zos/src/x86.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/src/x86.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/zeroize-zos/src/x86.rs	2026-08-11 16:15:33.614382136 -0400
+@@ -1,10 +1,9 @@
+ //! [`Zeroize`] impls for x86 SIMD registers
+ 
+-use crate::{atomic_fence, volatile_write, Zeroize};
++use crate::{Zeroize, optimization_barrier, volatile_write};
+ 
+ #[cfg(target_arch = "x86")]
+ use core::arch::x86::*;
+-
+ #[cfg(target_arch = "x86_64")]
+ use core::arch::x86_64::*;
+ 
+@@ -15,15 +14,13 @@
+                 #[inline]
+                 fn zeroize(&mut self) {
+                     volatile_write(self, unsafe { core::mem::zeroed() });
+-                    atomic_fence();
++                    optimization_barrier(self);
+                 }
+             }
+         )*
+     };
+ }
+ 
+-impl_zeroize_for_simd_register!(__m128, __m128d, __m128i, __m256, __m256d, __m256i);
+-
+-// NOTE: MSRV 1.72
+-#[cfg(feature = "simd")]
+-impl_zeroize_for_simd_register!(__m512, __m512d, __m512i);
++impl_zeroize_for_simd_register!(
++    __m128, __m128d, __m128i, __m256, __m256d, __m256i, __m512, __m512d, __m512i
++);
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zeroize-1.8.1/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/zeroize-zos/Cargo.toml	2026-08-11 16:15:33.614755687 -0400
+@@ -10,11 +10,17 @@
+ # See Cargo.toml.orig for the original contents.
+ 
+ [package]
+-edition = "2021"
+-rust-version = "1.60"
++edition = "2024"
++rust-version = "1.85"
+ name = "zeroize"
+-version = "1.8.1"
++version = "1.9.0"
+ authors = ["The RustCrypto Project Developers"]
++build = false
++autolib = false
++autobins = false
++autoexamples = false
++autotests = false
++autobenches = false
+ description = """
+ Securely clear secrets from memory with a simple trait built on
+ stable Rust primitives which guarantee memory is zeroed using an
+@@ -22,6 +28,7 @@
+ Uses a portable pure Rust implementation that works everywhere,
+ even WASM!
+ """
++documentation = "https://docs.rs/zeroize"
+ readme = "README.md"
+ keywords = [
+     "memory",
+@@ -37,23 +44,10 @@
+     "os",
+ ]
+ license = "Apache-2.0 OR MIT"
+-repository = "https://github.com/RustCrypto/utils/tree/master/zeroize"
++repository = "https://github.com/RustCrypto/utils"
+ 
+ [package.metadata.docs.rs]
+ all-features = true
+-rustdoc-args = [
+-    "--cfg",
+-    "docsrs",
+-]
+-
+-[dependencies.serde]
+-version = "1.0"
+-optional = true
+-default-features = false
+-
+-[dependencies.zeroize_derive]
+-version = "1.3"
+-optional = true
+ 
+ [features]
+ aarch64 = []
+@@ -62,3 +56,68 @@
+ derive = ["zeroize_derive"]
+ simd = []
+ std = ["alloc"]
++
++[lib]
++name = "zeroize"
++path = "src/lib.rs"
++
++[[test]]
++name = "alloc"
++path = "tests/alloc.rs"
++
++[[test]]
++name = "zeroize"
++path = "tests/zeroize.rs"
++
++[[test]]
++name = "zeroize_derive"
++path = "tests/zeroize_derive.rs"
++
++[dependencies.serde]
++version = "1"
++optional = true
++default-features = false
++
++[dependencies.zeroize_derive]
++version = "1.5"
++optional = true
++
++[lints.clippy]
++borrow_as_ptr = "warn"
++cast_lossless = "warn"
++cast_possible_truncation = "warn"
++cast_possible_wrap = "warn"
++cast_precision_loss = "warn"
++cast_sign_loss = "warn"
++checked_conversions = "warn"
++doc_markdown = "warn"
++from_iter_instead_of_collect = "warn"
++implicit_saturating_sub = "warn"
++manual_assert = "warn"
++map_unwrap_or = "warn"
++missing_errors_doc = "warn"
++missing_panics_doc = "warn"
++mod_module_files = "warn"
++must_use_candidate = "warn"
++needless_range_loop = "allow"
++ptr_as_ptr = "warn"
++redundant_closure_for_method_calls = "warn"
++ref_as_ptr = "warn"
++return_self_not_must_use = "warn"
++semicolon_if_nothing_returned = "warn"
++std_instead_of_alloc = "warn"
++std_instead_of_core = "warn"
++trivially_copy_pass_by_ref = "warn"
++undocumented_unsafe_blocks = "warn"
++unnecessary_safety_comment = "warn"
++unwrap_in_result = "warn"
++unwrap_used = "warn"
++
++[lints.rust]
++missing_copy_implementations = "warn"
++missing_debug_implementations = "warn"
++missing_docs = "warn"
++trivial_casts = "warn"
++trivial_numeric_casts = "warn"
++unused_lifetimes = "warn"
++unused_qualifications = "warn"

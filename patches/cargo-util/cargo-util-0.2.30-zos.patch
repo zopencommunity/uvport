@@ -1,0 +1,23 @@
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo-util-0.2.30/Cargo.toml	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/cargo-util-0.2.30/Cargo.toml	2026-08-11 10:09:13.422781717 -0400
+@@ -11,7 +11,6 @@
+ 
+ [package]
+ edition = "2024"
+-rust-version = "1.94"
+ name = "cargo-util"
+ version = "0.2.30"
+ build = false
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo-util-0.2.30/src/paths.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/cargo-util-0.2.30/src/paths.rs	2026-08-11 16:11:44.228782939 -0400
+@@ -211,8 +211,8 @@
+     let perms = path.metadata().ok().map(|meta| {
+         use std::os::unix::fs::PermissionsExt;
+ 
+-        // these constants are u16 on macOS
+-        let mask = u32::from(libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO);
++        // these constants are u16 on macOS, i32 on z/OS
++        let mask = (libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO) as u32;
+         let mode = meta.permissions().mode() & mask;
+ 
+         std::fs::Permissions::from_mode(mode)

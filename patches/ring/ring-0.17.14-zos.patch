@@ -1,0 +1,228 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/build.rs /tmp/ring-zos/build.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/build.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/build.rs	2026-08-11 16:18:10.771469846 -0400
+@@ -272,6 +272,8 @@
+         env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should always be set"),
+     );
+ 
++    // z/OS: allow normal C compilation via cross-compiler wrapper.
++
+     // Keep in sync with `core_name_and_version!` in prefixed.rs.
+     let core_name_and_version = [
+         &env::var("CARGO_PKG_NAME").unwrap(),
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/cpu_intel.c /tmp/ring-zos/crypto/cpu_intel.c
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/cpu_intel.c	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/cpu_intel.c	2026-08-11 16:25:04.686186087 -0400
+@@ -19,8 +19,12 @@
+ 
+ #if defined(_MSC_VER) && !defined(__clang__)
+ #pragma warning(push, 3)
++#ifndef __MVS__
+ #include <immintrin.h>
++#endif
++#ifndef __MVS__
+ #include <intrin.h>
++#endif
+ #pragma warning(pop)
+ #endif
+ 
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519.c /tmp/ring-zos/crypto/curve25519/curve25519.c
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519.c	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/curve25519/curve25519.c	2026-08-11 16:24:52.410279556 -0400
+@@ -48,7 +48,7 @@
+ #pragma GCC diagnostic ignored "-Wpedantic"
+ #endif
+ #include "../../third_party/fiat/curve25519_64.h"
+-#elif defined(OPENSSL_64_BIT)
++#elif defined(OPENSSL_64_BIT) && !defined(__MVS__)
+ #include "../../third_party/fiat/curve25519_64_msvc.h"
+ #else
+ #include "../../third_party/fiat/curve25519_32.h"
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/internal.h /tmp/ring-zos/crypto/fipsmodule/bn/internal.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/internal.h	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/fipsmodule/bn/internal.h	2026-08-11 16:25:04.685989874 -0400
+@@ -20,7 +20,9 @@
+ 
+ #if defined(OPENSSL_X86_64) && defined(_MSC_VER) && !defined(__clang__)
+ #pragma warning(push, 3)
++#ifndef __MVS__
+ #include <intrin.h>
++#endif
+ #pragma warning(pop)
+ #pragma intrinsic(_umul128)
+ #endif
+@@ -144,6 +146,14 @@
+                                  BN_ULONG a, BN_ULONG b) {
+ #if defined(OPENSSL_X86_64) && defined(_MSC_VER) && !defined(__clang__)
+   *low_out = _umul128(a, b, high_out);
++#elif defined(__MVS__)
++  /* z/OS: no __int128 support; use 32-bit half-word decomposition */
++  BN_ULONG a0 = (uint32_t)a, a1 = a >> 32;
++  BN_ULONG b0 = (uint32_t)b, b1 = b >> 32;
++  BN_ULONG p0 = a0 * b0, p1 = a0 * b1, p2 = a1 * b0, p3 = a1 * b1;
++  BN_ULONG mid = (p0 >> 32) + (uint32_t)p1 + (uint32_t)p2;
++  *low_out  = (uint32_t)p0 | (mid << 32);
++  *high_out = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+ #else
+   BN_ULLONG result = (BN_ULLONG)a * b;
+   *low_out = (BN_ULONG)result;
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256.c /tmp/ring-zos/crypto/fipsmodule/ec/p256.c
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256.c	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/fipsmodule/ec/p256.c	2026-08-11 16:24:16.576613220 -0400
+@@ -51,7 +51,7 @@
+ #pragma GCC diagnostic ignored "-Wpedantic"
+ #endif
+ #include "../../../third_party/fiat/p256_64.h"
+-#elif defined(OPENSSL_64_BIT)
++#elif defined(OPENSSL_64_BIT) && !defined(__MVS__)
+ #include "../../../third_party/fiat/p256_64_msvc.h"
+ #else
+ #include "../../../third_party/fiat/p256_32.h"
+@@ -60,13 +60,13 @@
+ 
+ // utility functions, handwritten
+ 
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+ #define FIAT_P256_NLIMBS 4
+ typedef uint64_t fiat_p256_limb_t;
+ typedef uint64_t fiat_p256_felem[FIAT_P256_NLIMBS];
+ static const fiat_p256_felem fiat_p256_one = {0x1, 0xffffffff00000000,
+                                               0xffffffffffffffff, 0xfffffffe};
+-#else  // 64BIT; else 32BIT
++#else  // 64BIT MSVC; z/OS; or 32BIT - use 32-bit limbs
+ #define FIAT_P256_NLIMBS 8
+ typedef uint32_t fiat_p256_limb_t;
+ typedef uint32_t fiat_p256_felem[FIAT_P256_NLIMBS];
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/internal.h /tmp/ring-zos/crypto/internal.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/internal.h	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/internal.h	2026-08-11 16:19:31.712032473 -0400
+@@ -58,7 +58,11 @@
+ // 'unsigned char' are allowed to alias according to ISO C.
+ typedef unsigned char aliasing_uint8_t;
+ 
+-#if (!defined(_MSC_VER) || defined(__clang__)) && defined(OPENSSL_64_BIT)
++#if defined(__clang__) && defined(__ibmxl__) && defined(OPENSSL_64_BIT)
++#define BORINGSSL_HAS_UINT128
++typedef __int128 int128_t;
++typedef unsigned __int128 uint128_t;
++#elif (!defined(_MSC_VER) || defined(__clang__)) && !defined(__MVS__) && defined(OPENSSL_64_BIT)
+ #define BORINGSSL_HAS_UINT128
+ typedef __int128_t int128_t;
+ typedef __uint128_t uint128_t;
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/limbs/limbs.inl /tmp/ring-zos/crypto/limbs/limbs.inl
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/limbs/limbs.inl	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/limbs/limbs.inl	2026-08-11 16:25:04.685707232 -0400
+@@ -17,7 +17,9 @@
+ 
+ #if defined(_MSC_VER) && !defined(__clang__)
+ #pragma warning(push, 3)
++#ifndef __MVS__
+ #include <intrin.h>
++#endif
+ #pragma warning(pop)
+ 
+ /* MSVC 2015 RC, when compiling for x86 with /Ox (at least), miscompiles
+@@ -46,7 +48,7 @@
+ #endif
+ #else
+ typedef Limb Carry;
+-#if LIMB_BITS == 64
++#if LIMB_BITS == 64 && !defined(__MVS__)
+ typedef __uint128_t DoubleLimb;
+ #elif LIMB_BITS == 32
+ typedef uint64_t DoubleLimb;
+@@ -60,6 +62,14 @@
+   Carry ret;
+ #if defined(RING_CORE_ADDCARRY_INTRINSIC)
+   ret = RING_CORE_ADDCARRY_INTRINSIC(carry_in, a, b, r);
++#elif defined(__MVS__) && LIMB_BITS == 64
++  /* z/OS: no __uint128_t; detect overflow manually */
++  Limb sum1 = a + carry_in;
++  Carry c1 = (sum1 < a) ? 1 : 0;
++  Limb sum2 = sum1 + b;
++  Carry c2 = (sum2 < sum1) ? 1 : 0;
++  *r = sum2;
++  ret = c1 + c2;
+ #else
+   DoubleLimb x = (DoubleLimb)a + b + carry_in;
+   *r = (Limb)x;
+@@ -74,6 +84,9 @@
+   Carry ret;
+ #if defined(RING_CORE_ADDCARRY_INTRINSIC)
+   ret = RING_CORE_ADDCARRY_INTRINSIC(0, a, b, r);
++#elif defined(__MVS__) && LIMB_BITS == 64
++  *r = a + b;
++  ret = (*r < a) ? 1 : 0;
+ #else
+   DoubleLimb x = (DoubleLimb)a + b;
+   *r = (Limb)x;
+@@ -90,6 +103,13 @@
+   Carry ret;
+ #if defined(RING_CORE_SUBBORROW_INTRINSIC)
+   ret = RING_CORE_SUBBORROW_INTRINSIC(borrow_in, a, b, r);
++#elif defined(__MVS__) && LIMB_BITS == 64
++  Limb diff1 = a - borrow_in;
++  Carry c1 = (borrow_in && a == 0) ? 1 : 0;
++  Limb diff2 = diff1 - b;
++  Carry c2 = (diff2 > diff1) ? 1 : 0;
++  *r = diff2;
++  ret = c1 | c2;
+ #else
+   DoubleLimb x = (DoubleLimb)a - b - borrow_in;
+   *r = (Limb)x;
+@@ -104,6 +124,9 @@
+   Carry ret;
+ #if defined(RING_CORE_SUBBORROW_INTRINSIC)
+   ret = RING_CORE_SUBBORROW_INTRINSIC(0, a, b, r);
++#elif defined(__MVS__) && LIMB_BITS == 64
++  *r = a - b;
++  ret = (a < b) ? 1 : 0;
+ #else
+   DoubleLimb x = (DoubleLimb)a - b;
+   *r = (Limb)x;
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/include/ring-core/zos_uint128.h /tmp/ring-zos/include/ring-core/zos_uint128.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/include/ring-core/zos_uint128.h	1969-12-31 19:00:00.000000000 -0500
++++ /tmp/ring-zos/include/ring-core/zos_uint128.h	2026-08-11 16:22:00.583452507 -0400
+@@ -0,0 +1,30 @@
++/* z/OS uint128 compatibility
++ * IBM XL C does not support __int128_t or __uint128_t.
++ * This header provides a compatible typedef and required arithmetic operations.
++ */
++#pragma once
++#ifdef __MVS__
++#include <stdint.h>
++
++typedef struct { uint64_t lo; uint64_t hi; } __uint128_zos;
++#define __uint128_t __uint128_zos
++
++/* Cast from uint64_t to uint128 */
++#define CAST128(x) ((__uint128_zos){(uint64_t)(x), 0})
++
++/* 64x64->128 multiply (used by ring) */
++static inline __uint128_zos mul128(uint64_t a, uint64_t b) {
++    uint32_t a0 = (uint32_t)a, a1 = (uint32_t)(a >> 32);
++    uint32_t b0 = (uint32_t)b, b1 = (uint32_t)(b >> 32);
++    uint64_t p0 = (uint64_t)a0 * b0;
++    uint64_t p1 = (uint64_t)a0 * b1;
++    uint64_t p2 = (uint64_t)a1 * b0;
++    uint64_t p3 = (uint64_t)a1 * b1;
++    uint64_t mid = (p0 >> 32) + (uint32_t)p1 + (uint32_t)p2;
++    __uint128_zos r;
++    r.lo = ((uint64_t)(uint32_t)p0) | (mid << 32);
++    r.hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
++    return r;
++}
++
++#endif /* __MVS__ */
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/src/rand.rs /tmp/ring-zos/src/rand.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/src/rand.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/src/rand.rs	2026-08-11 13:28:01.560104307 -0400
+@@ -125,6 +125,7 @@
+     all(feature = "less-safe-getrandom-custom-or-rdrand", target_os = "none"),
+     all(feature = "less-safe-getrandom-espidf", target_os = "espidf"),
+     target_os = "aix",
++    target_os = "zos",
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "freebsd",

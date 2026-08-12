@@ -1,0 +1,1460 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/Cargo.toml /tmp/reqwest-retry-zos/Cargo.toml
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/Cargo.toml	2026-08-11 10:02:51.225481920 -0400
++++ /tmp/reqwest-retry-zos/Cargo.toml	1969-12-31 19:00:00.000000000 -0500
+@@ -1,40 +0,0 @@
+-[package]
+-name = "reqwest-retry"
+-version = "0.7.0"
+-authors = ["Rodrigo Gryzinski <rodrigo.gryzinski@truelayer.com>"]
+-edition = "2018"
+-description = "Retry middleware for reqwest."
+-repository = "https://github.com/TrueLayer/reqwest-middleware"
+-license = "MIT OR Apache-2.0"
+-keywords = ["reqwest", "http", "middleware", "retry"]
+-categories = ["web-programming::http-client"]
+-
+-[features]
+-default = ["tracing"]
+-tracing = ["dep:tracing"]
+-
+-[dependencies]
+-reqwest-middleware = { version = ">0.3.0, <0.5.0", path = "../reqwest-middleware" }
+-
+-anyhow = "1.0.0"
+-async-trait = "0.1.51"
+-futures = "0.3.0"
+-http = "1.0"
+-reqwest = { version = "0.12.0", default-features = false }
+-retry-policies = "0.4"
+-thiserror = "2.0"
+-tracing = { version = "0.1.26", optional = true }
+-
+-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+-hyper = "1.0"
+-tokio = { version = "1.6.0", default-features = false, features = ["time"] }
+-
+-[target.'cfg(target_arch = "wasm32")'.dependencies]
+-wasmtimer = "0.4.1"
+-getrandom = { version = "0.2.0", features = ["js"] }
+-
+-[dev-dependencies]
+-paste = "1.0.0"
+-tokio = { version = "1.0.0", features = ["full"] }
+-wiremock = "0.6.0"
+-futures = "0.3.0"
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/CHANGELOG.md /tmp/reqwest-retry-zos/CHANGELOG.md
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/CHANGELOG.md	2026-08-11 10:02:51.225382165 -0400
++++ /tmp/reqwest-retry-zos/CHANGELOG.md	1969-12-31 19:00:00.000000000 -0500
+@@ -1,77 +0,0 @@
+-# Changelog
+-All notable changes to this project will be documented in this file.
+-
+-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+-
+-## [Unreleased]
+-
+-### Added
+-- Report retry count on `Ok` results that underwent retries through a `RetryCount` response extension.
+-
+-### Changed
+-
+-- Updated `thiserror` to `2.0`
+-
+-## [0.7.0] - 2024-11-08
+-
+-### Breaking changes
+-- Errors are now reported as `RetryError` that adds the number of retries to the error chain if there were any. This changes the returned error types.
+-
+-### Added
+-- Added support reqwest-middleware `0.4` next to `0.3`
+-
+-## [0.6.1] - 2024-08-08
+-
+-### Added
+-- Removed dependency on `chrono` ([#170](https://github.com/TrueLayer/reqwest-middleware/pull/170))
+-
+-## [0.6.0] - 2024-06-28
+-
+-### Added
+-- Added `with_retry_log_level` to `RetryTransientMiddleware`
+-
+-### Changed
+-- Upgraded `retry-policies` to `0.4.0`.
+-
+-## [0.5.0] - 2024-04-10
+-
+-### Breaking changes
+-- Upgraded `reqwest-middleware` to `0.3.0`.
+-
+-## [0.3.0] - 2023-09-07
+-### Changed
+-- `retry-policies` upgraded to 0.2.0
+-
+-## [0.2.3] - 2023-08-30
+-### Added
+-- `RetryableStrategy` which allows for custom retry decisions based on the response that a request got
+-
+-## [0.2.1] - 2022-12-01
+-
+-### Changed
+-- Classify `io::Error`s and `hyper::Error(Canceled)` as transient
+-
+-## [0.2.0] - 2022-11-15
+-### Changed
+-- Updated `reqwest-middleware` to `0.2.0`
+-
+-## [0.1.4] - 2022-02-21
+-### Changed
+-- Updated `reqwest-middleware` to `0.1.5`
+-
+-## [0.1.3] - 2022-01-24
+-### Changed
+-- Updated `reqwest-middleware` to `0.1.4`
+-
+-## [0.1.2] - 2021-09-28
+-### Added
+-- Re-export `RetryPolicy` from the crate root.
+-### Changed
+-- Disabled default features on `reqwest`
+-- Replaced `truelayer-extensions` with `task-local-extensions`
+-- Updated `reqwest-middleware` to `0.1.2`
+-
+-## [0.1.1] - 2021-09-15
+-### Changed
+-- Updated `reqwest-middleware` dependency to `0.1.1`.
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/.gitignore /tmp/reqwest-retry-zos/.gitignore
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/.gitignore	2026-08-11 10:02:51.225275981 -0400
++++ /tmp/reqwest-retry-zos/.gitignore	1969-12-31 19:00:00.000000000 -0500
+@@ -1,2 +0,0 @@
+-/target
+-Cargo.lock
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/LICENSE-APACHE /tmp/reqwest-retry-zos/LICENSE-APACHE
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/LICENSE-APACHE	2026-08-11 10:02:51.223917770 -0400
++++ /tmp/reqwest-retry-zos/LICENSE-APACHE	1969-12-31 19:00:00.000000000 -0500
+@@ -1,176 +0,0 @@
+-                              Apache License
+-                        Version 2.0, January 2004
+-                     http://www.apache.org/licenses/
+-
+-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+-
+-1. Definitions.
+-
+-   "License" shall mean the terms and conditions for use, reproduction,
+-   and distribution as defined by Sections 1 through 9 of this document.
+-
+-   "Licensor" shall mean the copyright owner or entity authorized by
+-   the copyright owner that is granting the License.
+-
+-   "Legal Entity" shall mean the union of the acting entity and all
+-   other entities that control, are controlled by, or are under common
+-   control with that entity. For the purposes of this definition,
+-   "control" means (i) the power, direct or indirect, to cause the
+-   direction or management of such entity, whether by contract or
+-   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+-   outstanding shares, or (iii) beneficial ownership of such entity.
+-
+-   "You" (or "Your") shall mean an individual or Legal Entity
+-   exercising permissions granted by this License.
+-
+-   "Source" form shall mean the preferred form for making modifications,
+-   including but not limited to software source code, documentation
+-   source, and configuration files.
+-
+-   "Object" form shall mean any form resulting from mechanical
+-   transformation or translation of a Source form, including but
+-   not limited to compiled object code, generated documentation,
+-   and conversions to other media types.
+-
+-   "Work" shall mean the work of authorship, whether in Source or
+-   Object form, made available under the License, as indicated by a
+-   copyright notice that is included in or attached to the work
+-   (an example is provided in the Appendix below).
+-
+-   "Derivative Works" shall mean any work, whether in Source or Object
+-   form, that is based on (or derived from) the Work and for which the
+-   editorial revisions, annotations, elaborations, or other modifications
+-   represent, as a whole, an original work of authorship. For the purposes
+-   of this License, Derivative Works shall not include works that remain
+-   separable from, or merely link (or bind by name) to the interfaces of,
+-   the Work and Derivative Works thereof.
+-
+-   "Contribution" shall mean any work of authorship, including
+-   the original version of the Work and any modifications or additions
+-   to that Work or Derivative Works thereof, that is intentionally
+-   submitted to Licensor for inclusion in the Work by the copyright owner
+-   or by an individual or Legal Entity authorized to submit on behalf of
+-   the copyright owner. For the purposes of this definition, "submitted"
+-   means any form of electronic, verbal, or written communication sent
+-   to the Licensor or its representatives, including but not limited to
+-   communication on electronic mailing lists, source code control systems,
+-   and issue tracking systems that are managed by, or on behalf of, the
+-   Licensor for the purpose of discussing and improving the Work, but
+-   excluding communication that is conspicuously marked or otherwise
+-   designated in writing by the copyright owner as "Not a Contribution."
+-
+-   "Contributor" shall mean Licensor and any individual or Legal Entity
+-   on behalf of whom a Contribution has been received by Licensor and
+-   subsequently incorporated within the Work.
+-
+-2. Grant of Copyright License. Subject to the terms and conditions of
+-   this License, each Contributor hereby grants to You a perpetual,
+-   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+-   copyright license to reproduce, prepare Derivative Works of,
+-   publicly display, publicly perform, sublicense, and distribute the
+-   Work and such Derivative Works in Source or Object form.
+-
+-3. Grant of Patent License. Subject to the terms and conditions of
+-   this License, each Contributor hereby grants to You a perpetual,
+-   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+-   (except as stated in this section) patent license to make, have made,
+-   use, offer to sell, sell, import, and otherwise transfer the Work,
+-   where such license applies only to those patent claims licensable
+-   by such Contributor that are necessarily infringed by their
+-   Contribution(s) alone or by combination of their Contribution(s)
+-   with the Work to which such Contribution(s) was submitted. If You
+-   institute patent litigation against any entity (including a
+-   cross-claim or counterclaim in a lawsuit) alleging that the Work
+-   or a Contribution incorporated within the Work constitutes direct
+-   or contributory patent infringement, then any patent licenses
+-   granted to You under this License for that Work shall terminate
+-   as of the date such litigation is filed.
+-
+-4. Redistribution. You may reproduce and distribute copies of the
+-   Work or Derivative Works thereof in any medium, with or without
+-   modifications, and in Source or Object form, provided that You
+-   meet the following conditions:
+-
+-   (a) You must give any other recipients of the Work or
+-       Derivative Works a copy of this License; and
+-
+-   (b) You must cause any modified files to carry prominent notices
+-       stating that You changed the files; and
+-
+-   (c) You must retain, in the Source form of any Derivative Works
+-       that You distribute, all copyright, patent, trademark, and
+-       attribution notices from the Source form of the Work,
+-       excluding those notices that do not pertain to any part of
+-       the Derivative Works; and
+-
+-   (d) If the Work includes a "NOTICE" text file as part of its
+-       distribution, then any Derivative Works that You distribute must
+-       include a readable copy of the attribution notices contained
+-       within such NOTICE file, excluding those notices that do not
+-       pertain to any part of the Derivative Works, in at least one
+-       of the following places: within a NOTICE text file distributed
+-       as part of the Derivative Works; within the Source form or
+-       documentation, if provided along with the Derivative Works; or,
+-       within a display generated by the Derivative Works, if and
+-       wherever such third-party notices normally appear. The contents
+-       of the NOTICE file are for informational purposes only and
+-       do not modify the License. You may add Your own attribution
+-       notices within Derivative Works that You distribute, alongside
+-       or as an addendum to the NOTICE text from the Work, provided
+-       that such additional attribution notices cannot be construed
+-       as modifying the License.
+-
+-   You may add Your own copyright statement to Your modifications and
+-   may provide additional or different license terms and conditions
+-   for use, reproduction, or distribution of Your modifications, or
+-   for any such Derivative Works as a whole, provided Your use,
+-   reproduction, and distribution of the Work otherwise complies with
+-   the conditions stated in this License.
+-
+-5. Submission of Contributions. Unless You explicitly state otherwise,
+-   any Contribution intentionally submitted for inclusion in the Work
+-   by You to the Licensor shall be under the terms and conditions of
+-   this License, without any additional terms or conditions.
+-   Notwithstanding the above, nothing herein shall supersede or modify
+-   the terms of any separate license agreement you may have executed
+-   with Licensor regarding such Contributions.
+-
+-6. Trademarks. This License does not grant permission to use the trade
+-   names, trademarks, service marks, or product names of the Licensor,
+-   except as required for reasonable and customary use in describing the
+-   origin of the Work and reproducing the content of the NOTICE file.
+-
+-7. Disclaimer of Warranty. Unless required by applicable law or
+-   agreed to in writing, Licensor provides the Work (and each
+-   Contributor provides its Contributions) on an "AS IS" BASIS,
+-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+-   implied, including, without limitation, any warranties or conditions
+-   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+-   PARTICULAR PURPOSE. You are solely responsible for determining the
+-   appropriateness of using or redistributing the Work and assume any
+-   risks associated with Your exercise of permissions under this License.
+-
+-8. Limitation of Liability. In no event and under no legal theory,
+-   whether in tort (including negligence), contract, or otherwise,
+-   unless required by applicable law (such as deliberate and grossly
+-   negligent acts) or agreed to in writing, shall any Contributor be
+-   liable to You for damages, including any direct, indirect, special,
+-   incidental, or consequential damages of any character arising as a
+-   result of this License or out of the use or inability to use the
+-   Work (including but not limited to damages for loss of goodwill,
+-   work stoppage, computer failure or malfunction, or any and all
+-   other commercial damages or losses), even if such Contributor
+-   has been advised of the possibility of such damages.
+-
+-9. Accepting Warranty or Additional Liability. While redistributing
+-   the Work or Derivative Works thereof, You may choose to offer,
+-   and charge a fee for, acceptance of support, warranty, indemnity,
+-   or other liability obligations and/or rights consistent with this
+-   License. However, in accepting such obligations, You may act only
+-   on Your own behalf and on Your sole responsibility, not on behalf
+-   of any other Contributor, and only if You agree to indemnify,
+-   defend, and hold each Contributor harmless for any liability
+-   incurred by, or claims asserted against, such Contributor by reason
+-   of your accepting any such warranty or additional liability.
+-
+-END OF TERMS AND CONDITIONS
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/LICENSE-MIT /tmp/reqwest-retry-zos/LICENSE-MIT
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/LICENSE-MIT	2026-08-11 10:02:51.224014441 -0400
++++ /tmp/reqwest-retry-zos/LICENSE-MIT	1969-12-31 19:00:00.000000000 -0500
+@@ -1,21 +0,0 @@
+-MIT License
+-
+-Copyright (c) 2021 TrueLayer
+-
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in all
+-copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-SOFTWARE.
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/README.md /tmp/reqwest-retry-zos/README.md
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/README.md	2026-08-11 10:02:51.225586573 -0400
++++ /tmp/reqwest-retry-zos/README.md	1969-12-31 19:00:00.000000000 -0500
+@@ -1,33 +0,0 @@
+-# reqwest-retry
+-
+-Retry middleware implementation for
+-[`reqwest-middleware`](https://crates.io/crates/reqwest-middleware).
+-
+-[![Crates.io](https://img.shields.io/crates/v/reqwest-retry.svg)](https://crates.io/crates/reqwest-retry)
+-[![Docs.rs](https://docs.rs/reqwest-retry/badge.svg)](https://docs.rs/reqwest-retry)
+-[![CI](https://github.com/TrueLayer/reqwest-middleware/workflows/CI/badge.svg)](https://github.com/TrueLayer/reqwest-middleware/actions)
+-[![Coverage Status](https://coveralls.io/repos/github/TrueLayer/reqwest-middleware/badge.svg?branch=main&t=UWgSpm)](https://coveralls.io/github/TrueLayer/reqwest-middleware?branch=main)
+-
+-## Overview
+-
+-Build `RetryTransientMiddleware` from a `RetryPolicy`, then attach it to a
+-`reqwest_middleware::ClientBuilder`.
+-[`retry-policies::policies`](https://crates.io/crates/retry-policies) is reexported under
+-`reqwest_retry::policies` for convenience.
+-
+-See [`reqwest_middleware`](https://docs.rs/reqwest_middleware) for usage with reqwest.
+-
+-#### License
+-
+-<sup>
+-Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+-2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+-</sup>
+-
+-<br>
+-
+-<sub>
+-Unless you explicitly state otherwise, any contribution intentionally submitted
+-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+-dual licensed as above, without any additional terms or conditions.
+-</sub>
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/lib.rs /tmp/reqwest-retry-zos/src/lib.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/lib.rs	2026-08-11 10:02:51.225725334 -0400
++++ /tmp/reqwest-retry-zos/src/lib.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,53 +0,0 @@
+-//! Middleware to retry failed HTTP requests built on [`reqwest_middleware`].
+-//!
+-//! Use [`RetryTransientMiddleware`] to retry failed HTTP requests. Retry control flow is managed
+-//! by a [`RetryPolicy`].
+-//!
+-//! ## Example
+-//!
+-//! ```
+-//! use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+-//! use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
+-//!
+-//! async fn run_retries() {
+-//!     // Retry up to 3 times with increasing intervals between attempts.
+-//!     let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+-//!     let client = ClientBuilder::new(reqwest::Client::new())
+-//!         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+-//!         .build();
+-//!
+-//!     client
+-//!         .get("https://truelayer.com")
+-//!         .header("foo", "bar")
+-//!         .send()
+-//!         .await
+-//!         .unwrap();
+-//! }
+-//! ```
+-
+-mod middleware;
+-mod retryable;
+-mod retryable_strategy;
+-
+-pub use retry_policies::{policies, Jitter, RetryDecision, RetryPolicy};
+-use thiserror::Error;
+-
+-pub use middleware::{RetryCount, RetryTransientMiddleware};
+-pub use retryable::Retryable;
+-pub use retryable_strategy::{
+-    default_on_request_error, default_on_request_failure, default_on_request_success,
+-    DefaultRetryableStrategy, RetryableStrategy,
+-};
+-
+-/// Custom error type to attach the number of retries to the error message.
+-#[derive(Debug, Error)]
+-pub enum RetryError {
+-    #[error("Request failed after {retries} retries")]
+-    WithRetries {
+-        retries: u32,
+-        #[source]
+-        err: reqwest_middleware::Error,
+-    },
+-    #[error(transparent)]
+-    Error(reqwest_middleware::Error),
+-}
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/middleware.rs /tmp/reqwest-retry-zos/src/middleware.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/middleware.rs	2026-08-11 10:02:51.225879708 -0400
++++ /tmp/reqwest-retry-zos/src/middleware.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,234 +0,0 @@
+-//! `RetryTransientMiddleware` implements retrying requests on transient errors.
+-use std::time::{Duration, SystemTime};
+-
+-use crate::retryable_strategy::RetryableStrategy;
+-use crate::{retryable::Retryable, retryable_strategy::DefaultRetryableStrategy, RetryError};
+-use anyhow::anyhow;
+-use http::Extensions;
+-use reqwest::{Request, Response};
+-use reqwest_middleware::{Error, Middleware, Next, Result};
+-use retry_policies::RetryPolicy;
+-
+-#[doc(hidden)]
+-// We need this macro because tracing expects the level to be const:
+-// https://github.com/tokio-rs/tracing/issues/2730
+-#[cfg(feature = "tracing")]
+-macro_rules! log_retry {
+-    ($level:expr, $($args:tt)*) => {{
+-        match $level {
+-            ::tracing::Level::TRACE => ::tracing::trace!($($args)*),
+-            ::tracing::Level::DEBUG => ::tracing::debug!($($args)*),
+-            ::tracing::Level::INFO => ::tracing::info!($($args)*),
+-            ::tracing::Level::WARN => ::tracing::warn!($($args)*),
+-            ::tracing::Level::ERROR => ::tracing::error!($($args)*),
+-        }
+-    }};
+-}
+-
+-/// `RetryTransientMiddleware` offers retry logic for requests that fail in a transient manner
+-/// and can be safely executed again.
+-///
+-/// Currently, it allows setting a [RetryPolicy] algorithm for calculating the __wait_time__
+-/// between each request retry. Sleeping on non-`wasm32` archs is performed using
+-/// [`tokio::time::sleep`], therefore it will respect pauses/auto-advance if run under a
+-/// runtime that supports them.
+-///
+-///```rust
+-///     use std::time::Duration;
+-///     use reqwest_middleware::ClientBuilder;
+-///     use retry_policies::{RetryDecision, RetryPolicy, Jitter};
+-///     use retry_policies::policies::ExponentialBackoff;
+-///     use reqwest_retry::RetryTransientMiddleware;
+-///     use reqwest::Client;
+-///
+-///     // We create a ExponentialBackoff retry policy which implements `RetryPolicy`.
+-///     let retry_policy = ExponentialBackoff::builder()
+-///         .retry_bounds(Duration::from_secs(1), Duration::from_secs(60))
+-///         .jitter(Jitter::Bounded)
+-///         .base(2)
+-///         .build_with_total_retry_duration(Duration::from_secs(24 * 60 * 60));
+-///
+-///     let retry_transient_middleware = RetryTransientMiddleware::new_with_policy(retry_policy);
+-///     let client = ClientBuilder::new(Client::new()).with(retry_transient_middleware).build();
+-///```
+-///
+-/// # Note
+-///
+-/// This middleware always errors when given requests with streaming bodies, before even executing
+-/// the request. When this happens you'll get an [`Error::Middleware`] with the message
+-/// 'Request object is not cloneable. Are you passing a streaming body?'.
+-///
+-/// Some workaround suggestions:
+-/// * If you can fit the data in memory, you can instead build static request bodies e.g. with
+-///   `Body`'s `From<String>` or `From<Bytes>` implementations.
+-/// * You can wrap this middleware in a custom one which skips retries for streaming requests.
+-/// * You can write a custom retry middleware that builds new streaming requests from the data
+-///   source directly, avoiding the issue of streaming requests not being cloneable.
+-pub struct RetryTransientMiddleware<
+-    T: RetryPolicy + Send + Sync + 'static,
+-    R: RetryableStrategy + Send + Sync + 'static = DefaultRetryableStrategy,
+-> {
+-    retry_policy: T,
+-    retryable_strategy: R,
+-    #[cfg(feature = "tracing")]
+-    retry_log_level: tracing::Level,
+-}
+-
+-impl<T: RetryPolicy + Send + Sync> RetryTransientMiddleware<T, DefaultRetryableStrategy> {
+-    /// Construct `RetryTransientMiddleware` with  a [retry_policy][RetryPolicy].
+-    pub fn new_with_policy(retry_policy: T) -> Self {
+-        Self::new_with_policy_and_strategy(retry_policy, DefaultRetryableStrategy)
+-    }
+-
+-    /// Set the log [level][tracing::Level] for retry events.
+-    /// The default is [`WARN`][tracing::Level::WARN].
+-    #[cfg(feature = "tracing")]
+-    pub fn with_retry_log_level(mut self, level: tracing::Level) -> Self {
+-        self.retry_log_level = level;
+-        self
+-    }
+-}
+-
+-impl<T, R> RetryTransientMiddleware<T, R>
+-where
+-    T: RetryPolicy + Send + Sync,
+-    R: RetryableStrategy + Send + Sync,
+-{
+-    /// Construct `RetryTransientMiddleware` with  a [retry_policy][RetryPolicy] and [retryable_strategy](RetryableStrategy).
+-    pub fn new_with_policy_and_strategy(retry_policy: T, retryable_strategy: R) -> Self {
+-        Self {
+-            retry_policy,
+-            retryable_strategy,
+-            #[cfg(feature = "tracing")]
+-            retry_log_level: tracing::Level::WARN,
+-        }
+-    }
+-}
+-
+-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+-impl<T, R> Middleware for RetryTransientMiddleware<T, R>
+-where
+-    T: RetryPolicy + Send + Sync,
+-    R: RetryableStrategy + Send + Sync + 'static,
+-{
+-    async fn handle(
+-        &self,
+-        req: Request,
+-        extensions: &mut Extensions,
+-        next: Next<'_>,
+-    ) -> Result<Response> {
+-        // TODO: Ideally we should create a new instance of the `Extensions` map to pass
+-        // downstream. This will guard against previous retries polluting `Extensions`.
+-        // That is, we only return what's populated in the typemap for the last retry attempt
+-        // and copy those into the the `global` Extensions map.
+-        self.execute_with_retry(req, next, extensions).await
+-    }
+-}
+-
+-impl<T, R> RetryTransientMiddleware<T, R>
+-where
+-    T: RetryPolicy + Send + Sync,
+-    R: RetryableStrategy + Send + Sync,
+-{
+-    /// This function will try to execute the request, if it fails
+-    /// with an error classified as transient it will call itself
+-    /// to retry the request.
+-    async fn execute_with_retry<'a>(
+-        &'a self,
+-        req: Request,
+-        next: Next<'a>,
+-        ext: &'a mut Extensions,
+-    ) -> Result<Response> {
+-        let mut n_past_retries = 0;
+-        let start_time = SystemTime::now();
+-        loop {
+-            // Cloning the request object before-the-fact is not ideal..
+-            // However, if the body of the request is not static, e.g of type `Bytes`,
+-            // the Clone operation should be of constant complexity and not O(N)
+-            // since the byte abstraction is a shared pointer over a buffer.
+-            let duplicate_request = req.try_clone().ok_or_else(|| {
+-                Error::Middleware(anyhow!(
+-                    "Request object is not cloneable. Are you passing a streaming body?"
+-                        .to_string()
+-                ))
+-            })?;
+-
+-            let result = next.clone().run(duplicate_request, ext).await;
+-
+-            // We classify the response which will return None if not
+-            // errors were returned.
+-            if let Some(Retryable::Transient) = self.retryable_strategy.handle(&result) {
+-                // If the response failed and the error type was transient
+-                // we can safely try to retry the request.
+-                let retry_decision = self.retry_policy.should_retry(start_time, n_past_retries);
+-                if let retry_policies::RetryDecision::Retry { execute_after } = retry_decision {
+-                    let duration = execute_after
+-                        .duration_since(SystemTime::now())
+-                        .unwrap_or_else(|_| Duration::default());
+-                    // Sleep the requested amount before we try again.
+-                    #[cfg(feature = "tracing")]
+-                    log_retry!(
+-                        self.retry_log_level,
+-                        "Retry attempt #{}. Sleeping {:?} before the next attempt",
+-                        n_past_retries,
+-                        duration
+-                    );
+-                    #[cfg(not(target_arch = "wasm32"))]
+-                    tokio::time::sleep(duration).await;
+-                    #[cfg(target_arch = "wasm32")]
+-                    wasmtimer::tokio::sleep(duration).await;
+-
+-                    n_past_retries += 1;
+-                    continue;
+-                }
+-            };
+-
+-            break if n_past_retries > 0 {
+-                // Both `Ok` results (e.g. status code errors) and `Err` results (e.g. an
+-                // `io::Error` for from connection reset), and we want to inform the user about the
+-                // retries in both cases.
+-                match result {
+-                    Ok(mut response) => {
+-                        response
+-                            .extensions_mut()
+-                            .insert(RetryCount::new(n_past_retries));
+-                        Ok(response)
+-                    }
+-                    Err(err) => Err(Error::Middleware(
+-                        RetryError::WithRetries {
+-                            retries: n_past_retries,
+-                            err,
+-                        }
+-                        .into(),
+-                    )),
+-                }
+-            } else {
+-                result.map_err(|err| Error::Middleware(RetryError::Error(err).into()))
+-            };
+-        }
+-    }
+-}
+-
+-/// Extension type to store retry count in a response.
+-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+-pub struct RetryCount(u32);
+-
+-impl RetryCount {
+-    /// Create a new retry count.
+-    pub fn new(count: u32) -> Self {
+-        Self(count)
+-    }
+-
+-    pub fn value(self) -> u32 {
+-        self.0
+-    }
+-}
+-
+-impl std::ops::Deref for RetryCount {
+-    type Target = u32;
+-
+-    fn deref(&self) -> &Self::Target {
+-        &self.0
+-    }
+-}
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/retryable.rs /tmp/reqwest-retry-zos/src/retryable.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/retryable.rs	2026-08-11 10:02:51.225984373 -0400
++++ /tmp/reqwest-retry-zos/src/retryable.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,27 +0,0 @@
+-use crate::retryable_strategy::{DefaultRetryableStrategy, RetryableStrategy};
+-use reqwest_middleware::Error;
+-
+-/// Classification of an error/status returned by request.
+-#[derive(PartialEq, Eq)]
+-pub enum Retryable {
+-    /// The failure was due to something that might resolve in the future.
+-    Transient,
+-    /// Unresolvable error.
+-    Fatal,
+-}
+-
+-impl Retryable {
+-    /// Try to map a `reqwest` response into `Retryable`.
+-    ///
+-    /// Returns `None` if the response object does not contain any errors.
+-    ///
+-    pub fn from_reqwest_response(res: &Result<reqwest::Response, Error>) -> Option<Self> {
+-        DefaultRetryableStrategy.handle(res)
+-    }
+-}
+-
+-impl From<&reqwest::Error> for Retryable {
+-    fn from(_status: &reqwest::Error) -> Retryable {
+-        Retryable::Transient
+-    }
+-}
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/retryable_strategy.rs /tmp/reqwest-retry-zos/src/retryable_strategy.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/src/retryable_strategy.rs	2026-08-11 10:02:51.226146200 -0400
++++ /tmp/reqwest-retry-zos/src/retryable_strategy.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,213 +0,0 @@
+-use crate::retryable::Retryable;
+-use http::StatusCode;
+-use reqwest_middleware::Error;
+-
+-/// A strategy to create a [`Retryable`] from a [`Result<reqwest::Response, reqwest_middleware::Error>`]
+-///
+-/// A [`RetryableStrategy`] has a single `handler` functions.
+-/// The result of calling the request could be:
+-/// - [`reqwest::Response`] In case the request has been sent and received correctly
+-///   This could however still mean that the server responded with a erroneous response.
+-///   For example a HTTP statuscode of 500
+-/// - [`reqwest_middleware::Error`] In this case the request actually failed.
+-///   This could, for example, be caused by a timeout on the connection.
+-///
+-/// Example:
+-///
+-/// ```
+-/// use reqwest_retry::{default_on_request_failure, policies::ExponentialBackoff, Retryable, RetryableStrategy, RetryTransientMiddleware};
+-/// use reqwest::{Request, Response};
+-/// use reqwest_middleware::{ClientBuilder, Middleware, Next, Result};
+-/// use http::Extensions;
+-///
+-/// // Log each request to show that the requests will be retried
+-/// struct LoggingMiddleware;
+-///
+-/// #[async_trait::async_trait]
+-/// impl Middleware for LoggingMiddleware {
+-///     async fn handle(
+-///         &self,
+-///         req: Request,
+-///         extensions: &mut Extensions,
+-///         next: Next<'_>,
+-///     ) -> Result<Response> {
+-///         println!("Request started {}", req.url());
+-///         let res = next.run(req, extensions).await;
+-///         println!("Request finished");
+-///         res
+-///     }
+-/// }
+-///
+-/// // Just a toy example, retry when the successful response code is 201, else do nothing.
+-/// struct Retry201;
+-/// impl RetryableStrategy for Retry201 {
+-///     fn handle(&self, res: &Result<reqwest::Response>) -> Option<Retryable> {
+-///          match res {
+-///              // retry if 201
+-///              Ok(success) if success.status() == 201 => Some(Retryable::Transient),
+-///              // otherwise do not retry a successful request
+-///              Ok(success) => None,
+-///              // but maybe retry a request failure
+-///              Err(error) => default_on_request_failure(error),
+-///         }
+-///     }
+-/// }
+-///
+-/// #[tokio::main]
+-/// async fn main() {
+-///     // Exponential backoff with max 2 retries
+-///     let retry_policy = ExponentialBackoff::builder()
+-///         .build_with_max_retries(2);
+-///
+-///     // Create the actual middleware, with the exponential backoff and custom retry strategy.
+-///     let ret_s = RetryTransientMiddleware::new_with_policy_and_strategy(
+-///         retry_policy,
+-///         Retry201,
+-///     );
+-///
+-///     let client = ClientBuilder::new(reqwest::Client::new())
+-///         // Retry failed requests.
+-///         .with(ret_s)
+-///         // Log the requests
+-///         .with(LoggingMiddleware)
+-///         .build();
+-///
+-///     // Send request which should get a 201 response. So it will be retried
+-///     let r = client
+-///         .get("https://httpbin.org/status/201")
+-///         .send()
+-///         .await;
+-///     println!("{:?}", r);
+-///
+-///     // Send request which should get a 200 response. So it will not be retried
+-///     let r = client
+-///         .get("https://httpbin.org/status/200")
+-///         .send()
+-///         .await;
+-///     println!("{:?}", r);
+-/// }
+-/// ```
+-pub trait RetryableStrategy {
+-    fn handle(&self, res: &Result<reqwest::Response, Error>) -> Option<Retryable>;
+-}
+-
+-/// The default [`RetryableStrategy`] for [`RetryTransientMiddleware`](crate::RetryTransientMiddleware).
+-pub struct DefaultRetryableStrategy;
+-
+-impl RetryableStrategy for DefaultRetryableStrategy {
+-    fn handle(&self, res: &Result<reqwest::Response, Error>) -> Option<Retryable> {
+-        match res {
+-            Ok(success) => default_on_request_success(success),
+-            Err(error) => default_on_request_failure(error),
+-        }
+-    }
+-}
+-
+-/// Default request success retry strategy.
+-///
+-/// Will only retry if:
+-/// * The status was 5XX (server error)
+-/// * The status was 408 (request timeout) or 429 (too many requests)
+-///
+-/// Note that success here means that the request finished without interruption, not that it was logically OK.
+-pub fn default_on_request_success(success: &reqwest::Response) -> Option<Retryable> {
+-    let status = success.status();
+-    if status.is_server_error() {
+-        Some(Retryable::Transient)
+-    } else if status.is_client_error()
+-        && status != StatusCode::REQUEST_TIMEOUT
+-        && status != StatusCode::TOO_MANY_REQUESTS
+-    {
+-        Some(Retryable::Fatal)
+-    } else if status.is_success() {
+-        None
+-    } else if status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS {
+-        Some(Retryable::Transient)
+-    } else {
+-        Some(Retryable::Fatal)
+-    }
+-}
+-
+-/// Default request failure retry strategy for a [`reqwest_middleware::Error`].
+-///
+-/// Will only retry if the request failed due to a network error
+-pub fn default_on_request_failure(error: &Error) -> Option<Retryable> {
+-    match error {
+-        // If something fails in the middleware we're screwed.
+-        Error::Middleware(_) => Some(Retryable::Fatal),
+-        Error::Reqwest(error) => default_on_request_error(error),
+-    }
+-}
+-
+-/// Default request failure retry strategy for the [`reqwest::Error`] part of a
+-/// [`reqwest_middleware::Error`].
+-///
+-/// Will only retry if the request failed due to a network error
+-pub fn default_on_request_error(error: &reqwest::Error) -> Option<Retryable> {
+-    #[cfg(not(target_arch = "wasm32"))]
+-    let is_connect = error.is_connect();
+-    #[cfg(target_arch = "wasm32")]
+-    let is_connect = false;
+-    if error.is_timeout() || is_connect {
+-        Some(Retryable::Transient)
+-    } else if error.is_body() || error.is_decode() || error.is_builder() || error.is_redirect() {
+-        Some(Retryable::Fatal)
+-    } else if error.is_request() {
+-        // It seems that hyper::Error(IncompleteMessage) is not correctly handled by reqwest.
+-        // Here we check if the Reqwest error was originated by hyper and map it consistently.
+-        #[cfg(not(target_arch = "wasm32"))]
+-        if let Some(hyper_error) = get_source_error_type::<hyper::Error>(&error) {
+-            // The hyper::Error(IncompleteMessage) is raised if the HTTP response is well formatted but does not contain all the bytes.
+-            // This can happen when the server has started sending back the response but the connection is cut halfway through.
+-            // We can safely retry the call, hence marking this error as [`Retryable::Transient`].
+-            // Instead hyper::Error(Canceled) is raised when the connection is
+-            // gracefully closed on the server side.
+-            if hyper_error.is_incomplete_message() || hyper_error.is_canceled() {
+-                Some(Retryable::Transient)
+-
+-            // Try and downcast the hyper error to io::Error if that is the
+-            // underlying error, and try and classify it.
+-            } else if let Some(io_error) = get_source_error_type::<std::io::Error>(hyper_error) {
+-                Some(classify_io_error(io_error))
+-            } else {
+-                Some(Retryable::Fatal)
+-            }
+-        } else {
+-            Some(Retryable::Fatal)
+-        }
+-        #[cfg(target_arch = "wasm32")]
+-        Some(Retryable::Fatal)
+-    } else {
+-        // We omit checking if error.is_status() since we check that already.
+-        // However, if Response::error_for_status is used the status will still
+-        // remain in the response object.
+-        None
+-    }
+-}
+-
+-#[cfg(not(target_arch = "wasm32"))]
+-fn classify_io_error(error: &std::io::Error) -> Retryable {
+-    match error.kind() {
+-        std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted => {
+-            Retryable::Transient
+-        }
+-        _ => Retryable::Fatal,
+-    }
+-}
+-
+-/// Downcasts the given err source into T.
+-#[cfg(not(target_arch = "wasm32"))]
+-fn get_source_error_type<T: std::error::Error + 'static>(
+-    err: &dyn std::error::Error,
+-) -> Option<&T> {
+-    let mut source = err.source();
+-
+-    while let Some(err) = source {
+-        if let Some(err) = err.downcast_ref::<T>() {
+-            return Some(err);
+-        }
+-
+-        source = err.source();
+-    }
+-    None
+-}
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/helpers/mod.rs /tmp/reqwest-retry-zos/tests/all/helpers/mod.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/helpers/mod.rs	2026-08-11 10:02:51.226336596 -0400
++++ /tmp/reqwest-retry-zos/tests/all/helpers/mod.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,3 +0,0 @@
+-mod simple_server;
+-
+-pub use simple_server::SimpleServer;
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/helpers/simple_server.rs /tmp/reqwest-retry-zos/tests/all/helpers/simple_server.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/helpers/simple_server.rs	2026-08-11 10:02:51.226490109 -0400
++++ /tmp/reqwest-retry-zos/tests/all/helpers/simple_server.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,160 +0,0 @@
+-use futures::future::BoxFuture;
+-use std::error::Error;
+-use std::fmt;
+-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+-use tokio::net::{TcpListener, TcpStream};
+-
+-type CustomMessageHandler = Box<
+-    dyn Fn(TcpStream) -> BoxFuture<'static, Result<(), Box<dyn std::error::Error>>> + Send + Sync,
+->;
+-
+-/// This is a simple server that returns the responses given at creation time: [`self.raw_http_responses`] following a round-robin mechanism.
+-pub struct SimpleServer {
+-    listener: TcpListener,
+-    port: u16,
+-    host: String,
+-    raw_http_responses: Vec<String>,
+-    calls_counter: usize,
+-    custom_handler: Option<CustomMessageHandler>,
+-}
+-
+-/// Request-Line = Method SP Request-URI SP HTTP-Version CRLF
+-struct Request<'a> {
+-    method: &'a str,
+-    uri: &'a str,
+-    http_version: &'a str,
+-}
+-
+-impl fmt::Display for Request<'_> {
+-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        write!(f, "{} {} {}\r\n", self.method, self.uri, self.http_version)
+-    }
+-}
+-
+-impl SimpleServer {
+-    /// Creates an instance of a [`SimpleServer`]
+-    /// If [`port`] is None os Some(0), it gets randomly chosen between the available ones.
+-    pub async fn new(
+-        host: &str,
+-        port: Option<u16>,
+-        raw_http_responses: Vec<String>,
+-    ) -> Result<Self, anyhow::Error> {
+-        let port = port.unwrap_or(0);
+-        let listener = TcpListener::bind(format!("{}:{}", host, port)).await?;
+-
+-        let port = listener.local_addr()?.port();
+-
+-        Ok(Self {
+-            listener,
+-            port,
+-            host: host.to_string(),
+-            raw_http_responses,
+-            calls_counter: 0,
+-            custom_handler: None,
+-        })
+-    }
+-
+-    pub fn set_custom_handler(
+-        &mut self,
+-        custom_handler: impl Fn(TcpStream) -> BoxFuture<'static, Result<(), Box<dyn std::error::Error>>>
+-            + Send
+-            + Sync
+-            + 'static,
+-    ) -> &mut Self {
+-        self.custom_handler.replace(Box::new(custom_handler));
+-        self
+-    }
+-
+-    /// Returns the uri in which the server is listening to.
+-    pub fn uri(&self) -> String {
+-        format!("http://{}:{}", self.host, self.port)
+-    }
+-
+-    /// Starts the TcpListener and handles the requests.
+-    pub async fn start(mut self) {
+-        loop {
+-            match self.listener.accept().await {
+-                Ok((stream, _)) => {
+-                    match self.handle_connection(stream).await {
+-                        Ok(_) => (),
+-                        Err(e) => {
+-                            println!("Error handling connection: {}", e);
+-                        }
+-                    }
+-                    self.calls_counter += 1;
+-                }
+-                Err(e) => {
+-                    println!("Connection failed: {}", e);
+-                }
+-            }
+-        }
+-    }
+-
+-    /// Asyncrounously reads from the buffer and handle the request.
+-    /// It first checks that the format is correct, then returns the response.
+-    ///
+-    /// Returns a 400 if the request if formatted badly.
+-    async fn handle_connection(&self, mut stream: TcpStream) -> Result<(), Box<dyn Error>> {
+-        if let Some(ref custom_handler) = self.custom_handler {
+-            return custom_handler(stream).await;
+-        }
+-
+-        let mut buffer = vec![0; 1024];
+-
+-        let n = stream.read(&mut buffer).await.unwrap();
+-
+-        let request = String::from_utf8_lossy(&buffer[..n]);
+-        let request_line = request.lines().next().unwrap();
+-
+-        let response = match Self::parse_request_line(request_line) {
+-            Ok(request) => {
+-                println!("== Request == \n{}\n=============", request);
+-                self.get_response().clone()
+-            }
+-            Err(e) => {
+-                println!("++ Bad request: {} ++++++", e);
+-                self.get_bad_request_response()
+-            }
+-        };
+-
+-        println!("-- Response --\n{}\n--------------", response.clone());
+-        stream.write_all(response.as_bytes()).await.unwrap();
+-        stream.flush().await.unwrap();
+-
+-        Ok(())
+-    }
+-
+-    /// Parses the request line and checks that it contains the method, uri and http_version parts.
+-    /// It does not check if the content of the checked parts is correct. It just checks the format (it contains enough parts) of the request.
+-    fn parse_request_line(request: &str) -> Result<Request<'_>, Box<dyn Error>> {
+-        let mut parts = request.split_whitespace();
+-
+-        let method = parts.next().ok_or("Method not specified")?;
+-
+-        let uri = parts.next().ok_or("URI not specified")?;
+-
+-        let http_version = parts.next().ok_or("HTTP version not specified")?;
+-
+-        Ok(Request {
+-            method,
+-            uri,
+-            http_version,
+-        })
+-    }
+-
+-    /// Returns the response to use based on the calls counter.
+-    /// It uses a round-robin mechanism.
+-    fn get_response(&self) -> String {
+-        let index = if self.calls_counter >= self.raw_http_responses.len() {
+-            self.raw_http_responses.len() % self.calls_counter
+-        } else {
+-            self.calls_counter
+-        };
+-        self.raw_http_responses[index].clone()
+-    }
+-
+-    /// Returns the raw HTTP response in case of a 400 Bad Request.
+-    fn get_bad_request_response(&self) -> String {
+-        "HTTP/1.1 400 Bad Request\r\n\r\n".to_string()
+-    }
+-}
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/main.rs /tmp/reqwest-retry-zos/tests/all/main.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/main.rs	2026-08-11 10:02:51.226589865 -0400
++++ /tmp/reqwest-retry-zos/tests/all/main.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,2 +0,0 @@
+-mod helpers;
+-mod retry;
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/retry.rs /tmp/reqwest-retry-zos/tests/all/retry.rs
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-retry/tests/all/retry.rs	2026-08-11 10:02:51.226765355 -0400
++++ /tmp/reqwest-retry-zos/tests/all/retry.rs	1969-12-31 19:00:00.000000000 -0500
+@@ -1,363 +0,0 @@
+-use futures::FutureExt;
+-use paste::paste;
+-use reqwest::Client;
+-use reqwest::StatusCode;
+-use reqwest_middleware::ClientBuilder;
+-use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+-use std::sync::atomic::AtomicI8;
+-use std::sync::{
+-    atomic::{AtomicU32, Ordering},
+-    Arc,
+-};
+-use tokio::io::AsyncReadExt;
+-use tokio::io::AsyncWriteExt;
+-use wiremock::matchers::{method, path};
+-use wiremock::{Mock, MockServer, Respond, ResponseTemplate};
+-
+-use crate::helpers::SimpleServer;
+-pub struct RetryResponder(Arc<AtomicU32>, u32, u16);
+-
+-impl RetryResponder {
+-    fn new(retries: u32, status_code: u16) -> Self {
+-        Self(Arc::new(AtomicU32::new(0)), retries, status_code)
+-    }
+-}
+-
+-impl Respond for RetryResponder {
+-    fn respond(&self, _request: &wiremock::Request) -> ResponseTemplate {
+-        let mut retries = self.0.load(Ordering::SeqCst);
+-        retries += 1;
+-        self.0.store(retries, Ordering::SeqCst);
+-
+-        if retries + 1 >= self.1 {
+-            ResponseTemplate::new(200)
+-        } else {
+-            ResponseTemplate::new(self.2)
+-        }
+-    }
+-}
+-
+-macro_rules! assert_retry_succeeds_inner {
+-    ($x:tt, $name:ident, $status:expr, $retry:tt, $exact:tt, $responder:expr) => {
+-        #[tokio::test]
+-        async fn $name() {
+-            let server = MockServer::start().await;
+-            let retry_amount: u32 = $retry;
+-            Mock::given(method("GET"))
+-                .and(path("/foo"))
+-                .respond_with($responder)
+-                .expect($exact)
+-                .mount(&server)
+-                .await;
+-
+-            let reqwest_client = Client::builder().build().unwrap();
+-            let client = ClientBuilder::new(reqwest_client)
+-                .with(RetryTransientMiddleware::new_with_policy(
+-                    ExponentialBackoff::builder()
+-                        .retry_bounds(
+-                            std::time::Duration::from_millis(30),
+-                            std::time::Duration::from_millis(100),
+-                        )
+-                        .build_with_max_retries(retry_amount),
+-                ))
+-                .build();
+-
+-            let resp = client
+-                .get(&format!("{}/foo", server.uri()))
+-                .send()
+-                .await
+-                .expect("call failed");
+-
+-            assert_eq!(resp.status(), $status);
+-        }
+-    };
+-}
+-
+-macro_rules! assert_retry_succeeds {
+-    ($x:tt, $status:expr) => {
+-        paste! {
+-            assert_retry_succeeds_inner!($x, [<assert_retry_succeeds_on_ $x>], $status, 3, 2, RetryResponder::new(3 as u32, $x));
+-        }
+-    };
+-}
+-
+-macro_rules! assert_no_retry {
+-    ($x:tt, $status:expr) => {
+-        paste! {
+-            assert_retry_succeeds_inner!($x, [<assert_no_retry_on_ $x>], $status, 1, 1, ResponseTemplate::new($x));
+-        }
+-    };
+-}
+-
+-// 2xx.
+-assert_no_retry!(200, StatusCode::OK);
+-assert_no_retry!(201, StatusCode::CREATED);
+-assert_no_retry!(202, StatusCode::ACCEPTED);
+-assert_no_retry!(203, StatusCode::NON_AUTHORITATIVE_INFORMATION);
+-assert_no_retry!(204, StatusCode::NO_CONTENT);
+-assert_no_retry!(205, StatusCode::RESET_CONTENT);
+-assert_no_retry!(206, StatusCode::PARTIAL_CONTENT);
+-assert_no_retry!(207, StatusCode::MULTI_STATUS);
+-assert_no_retry!(226, StatusCode::IM_USED);
+-
+-// 3xx.
+-assert_no_retry!(300, StatusCode::MULTIPLE_CHOICES);
+-assert_no_retry!(301, StatusCode::MOVED_PERMANENTLY);
+-assert_no_retry!(302, StatusCode::FOUND);
+-assert_no_retry!(303, StatusCode::SEE_OTHER);
+-assert_no_retry!(304, StatusCode::NOT_MODIFIED);
+-assert_no_retry!(307, StatusCode::TEMPORARY_REDIRECT);
+-assert_no_retry!(308, StatusCode::PERMANENT_REDIRECT);
+-
+-// 5xx.
+-assert_retry_succeeds!(500, StatusCode::OK);
+-assert_retry_succeeds!(501, StatusCode::OK);
+-assert_retry_succeeds!(502, StatusCode::OK);
+-assert_retry_succeeds!(503, StatusCode::OK);
+-assert_retry_succeeds!(504, StatusCode::OK);
+-assert_retry_succeeds!(505, StatusCode::OK);
+-assert_retry_succeeds!(506, StatusCode::OK);
+-assert_retry_succeeds!(507, StatusCode::OK);
+-assert_retry_succeeds!(508, StatusCode::OK);
+-assert_retry_succeeds!(510, StatusCode::OK);
+-assert_retry_succeeds!(511, StatusCode::OK);
+-// 4xx.
+-assert_no_retry!(400, StatusCode::BAD_REQUEST);
+-assert_no_retry!(401, StatusCode::UNAUTHORIZED);
+-assert_no_retry!(402, StatusCode::PAYMENT_REQUIRED);
+-assert_no_retry!(403, StatusCode::FORBIDDEN);
+-assert_no_retry!(404, StatusCode::NOT_FOUND);
+-assert_no_retry!(405, StatusCode::METHOD_NOT_ALLOWED);
+-assert_no_retry!(406, StatusCode::NOT_ACCEPTABLE);
+-assert_no_retry!(407, StatusCode::PROXY_AUTHENTICATION_REQUIRED);
+-assert_retry_succeeds!(408, StatusCode::OK);
+-assert_no_retry!(409, StatusCode::CONFLICT);
+-assert_no_retry!(410, StatusCode::GONE);
+-assert_no_retry!(411, StatusCode::LENGTH_REQUIRED);
+-assert_no_retry!(412, StatusCode::PRECONDITION_FAILED);
+-assert_no_retry!(413, StatusCode::PAYLOAD_TOO_LARGE);
+-assert_no_retry!(414, StatusCode::URI_TOO_LONG);
+-assert_no_retry!(415, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+-assert_no_retry!(416, StatusCode::RANGE_NOT_SATISFIABLE);
+-assert_no_retry!(417, StatusCode::EXPECTATION_FAILED);
+-assert_no_retry!(418, StatusCode::IM_A_TEAPOT);
+-assert_no_retry!(421, StatusCode::MISDIRECTED_REQUEST);
+-assert_no_retry!(422, StatusCode::UNPROCESSABLE_ENTITY);
+-assert_no_retry!(423, StatusCode::LOCKED);
+-assert_no_retry!(424, StatusCode::FAILED_DEPENDENCY);
+-assert_no_retry!(426, StatusCode::UPGRADE_REQUIRED);
+-assert_no_retry!(428, StatusCode::PRECONDITION_REQUIRED);
+-assert_retry_succeeds!(429, StatusCode::OK);
+-assert_no_retry!(431, StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
+-assert_no_retry!(451, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
+-
+-pub struct RetryTimeoutResponder(Arc<AtomicU32>, u32, std::time::Duration);
+-
+-impl RetryTimeoutResponder {
+-    fn new(retries: u32, initial_timeout: std::time::Duration) -> Self {
+-        Self(Arc::new(AtomicU32::new(0)), retries, initial_timeout)
+-    }
+-}
+-
+-impl Respond for RetryTimeoutResponder {
+-    fn respond(&self, _request: &wiremock::Request) -> ResponseTemplate {
+-        let mut retries = self.0.load(Ordering::SeqCst);
+-        retries += 1;
+-        self.0.store(retries, Ordering::SeqCst);
+-
+-        if retries + 1 >= self.1 {
+-            ResponseTemplate::new(200)
+-        } else {
+-            ResponseTemplate::new(500).set_delay(self.2)
+-        }
+-    }
+-}
+-
+-#[tokio::test]
+-async fn assert_retry_on_request_timeout() {
+-    let server = MockServer::start().await;
+-    Mock::given(method("GET"))
+-        .and(path("/foo"))
+-        .respond_with(RetryTimeoutResponder::new(
+-            3,
+-            std::time::Duration::from_millis(1000),
+-        ))
+-        .expect(2)
+-        .mount(&server)
+-        .await;
+-
+-    let reqwest_client = Client::builder().build().unwrap();
+-    let client = ClientBuilder::new(reqwest_client)
+-        .with(RetryTransientMiddleware::new_with_policy(
+-            ExponentialBackoff::builder()
+-                .retry_bounds(
+-                    std::time::Duration::from_millis(30),
+-                    std::time::Duration::from_millis(100),
+-                )
+-                .build_with_max_retries(3),
+-        ))
+-        .build();
+-
+-    let resp = client
+-        .get(format!("{}/foo", server.uri()))
+-        .timeout(std::time::Duration::from_millis(10))
+-        .send()
+-        .await
+-        .expect("call failed");
+-
+-    assert_eq!(resp.status(), 200);
+-}
+-
+-#[tokio::test]
+-async fn assert_retry_on_incomplete_message() {
+-    // Following the HTTP/1.1 specification (https://en.wikipedia.org/wiki/HTTP_message_body) a valid response contains:
+-    // - status line
+-    // - headers
+-    // - empty line
+-    // - optional message body
+-    //
+-    // After a few tries we have noticed that:
+-    // - "message_that_makes_no_sense" triggers a hyper::ParseError because the format is completely wrong
+-    // - "HTTP/1.1" triggers a hyper::IncompleteMessage because the format is correct until that point but misses mandatory parts
+-    let incomplete_message = "HTTP/1.1";
+-    let complete_message = "HTTP/1.1 200 OK\r\n\r\n";
+-
+-    // create a SimpleServer that returns the correct response after 3 attempts.
+-    // the first 3 attempts are incomplete http response and internally they result in a [`hyper::Error(IncompleteMessage)`] error.
+-    let simple_server = SimpleServer::new(
+-        "127.0.0.1",
+-        None,
+-        vec![
+-            incomplete_message.to_string(),
+-            incomplete_message.to_string(),
+-            incomplete_message.to_string(),
+-            complete_message.to_string(),
+-        ],
+-    )
+-    .await
+-    .expect("Error when creating a simple server");
+-
+-    let uri = simple_server.uri();
+-
+-    tokio::spawn(simple_server.start());
+-
+-    let reqwest_client = Client::builder().build().unwrap();
+-    let client = ClientBuilder::new(reqwest_client)
+-        .with(RetryTransientMiddleware::new_with_policy(
+-            ExponentialBackoff::builder()
+-                .retry_bounds(
+-                    std::time::Duration::from_millis(30),
+-                    std::time::Duration::from_millis(100),
+-                )
+-                .build_with_max_retries(3),
+-        ))
+-        .build();
+-
+-    let resp = client
+-        .get(format!("{}/foo", uri))
+-        .timeout(std::time::Duration::from_millis(100))
+-        .send()
+-        .await
+-        .expect("call failed");
+-
+-    assert_eq!(resp.status(), 200);
+-}
+-
+-#[tokio::test]
+-async fn assert_retry_on_hyper_canceled() {
+-    let counter = Arc::new(AtomicI8::new(0));
+-    let mut simple_server = SimpleServer::new("127.0.0.1", None, vec![])
+-        .await
+-        .expect("Error when creating a simple server");
+-    simple_server.set_custom_handler(move |mut stream| {
+-        let counter = counter.clone();
+-        async move {
+-            let mut buffer = Vec::new();
+-            stream.read_buf(&mut buffer).await.unwrap();
+-            if counter.fetch_add(1, Ordering::SeqCst) > 1 {
+-                // This triggers hyper:Error(Canceled).
+-                let _res = stream
+-                    .into_std()
+-                    .unwrap()
+-                    .shutdown(std::net::Shutdown::Both);
+-            } else {
+-                let _res = stream.write("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).await;
+-            }
+-            Ok(())
+-        }
+-        .boxed()
+-    });
+-
+-    let uri = simple_server.uri();
+-
+-    tokio::spawn(simple_server.start());
+-
+-    let reqwest_client = Client::builder().build().unwrap();
+-    let client = ClientBuilder::new(reqwest_client)
+-        .with(RetryTransientMiddleware::new_with_policy(
+-            ExponentialBackoff::builder()
+-                .retry_bounds(
+-                    std::time::Duration::from_millis(30),
+-                    std::time::Duration::from_millis(100),
+-                )
+-                .build_with_max_retries(3),
+-        ))
+-        .build();
+-
+-    let resp = client
+-        .get(format!("{}/foo", uri))
+-        .timeout(std::time::Duration::from_millis(100))
+-        .send()
+-        .await
+-        .expect("call failed");
+-
+-    assert_eq!(resp.status(), 200);
+-}
+-
+-#[tokio::test]
+-async fn assert_retry_on_connection_reset_by_peer() {
+-    let counter = Arc::new(AtomicI8::new(0));
+-    let mut simple_server = SimpleServer::new("127.0.0.1", None, vec![])
+-        .await
+-        .expect("Error when creating a simple server");
+-    simple_server.set_custom_handler(move |mut stream| {
+-        let counter = counter.clone();
+-        async move {
+-            let mut buffer = Vec::new();
+-            stream.read_buf(&mut buffer).await.unwrap();
+-            if counter.fetch_add(1, Ordering::SeqCst) > 1 {
+-                // This triggers hyper:Error(Io, io::Error(ConnectionReset)).
+-                drop(stream);
+-            } else {
+-                let _res = stream.write("HTTP/1.1 200 OK\r\n\r\n".as_bytes()).await;
+-            }
+-            Ok(())
+-        }
+-        .boxed()
+-    });
+-
+-    let uri = simple_server.uri();
+-
+-    tokio::spawn(simple_server.start());
+-
+-    let reqwest_client = Client::builder().build().unwrap();
+-    let client = ClientBuilder::new(reqwest_client)
+-        .with(RetryTransientMiddleware::new_with_policy(
+-            ExponentialBackoff::builder()
+-                .retry_bounds(
+-                    std::time::Duration::from_millis(30),
+-                    std::time::Duration::from_millis(100),
+-                )
+-                .build_with_max_retries(3),
+-        ))
+-        .build();
+-
+-    let resp = client
+-        .get(format!("{}/foo", uri))
+-        .timeout(std::time::Duration::from_millis(100))
+-        .send()
+-        .await
+-        .expect("call failed");
+-
+-    assert_eq!(resp.status(), 200);
+-}

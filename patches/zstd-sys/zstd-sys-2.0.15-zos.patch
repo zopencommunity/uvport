@@ -1,0 +1,60 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/build.rs /tmp/zstd-sys-zos/build.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/build.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/zstd-sys-zos/build.rs	2026-08-11 12:42:03.071254533 -0400
+@@ -268,6 +268,18 @@
+         std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+ 
++    // z/OS: use pre-built static library from zopen community
++    if target_os == "zos" {
++        let lib_dir = env::var("ZSTD_LIB_DIR")
++            .unwrap_or_else(|_| "/tmp/zos-sysroot/zstd/lib".to_string());
++        let include_dir = env::var("ZSTD_INCLUDE_DIR")
++            .unwrap_or_else(|_| "/tmp/zos-sysroot/zstd/include".to_string());
++        cargo_print(&format!("rustc-link-search=native={}", lib_dir));
++        cargo_print(&"rustc-link-lib=static=zstd");
++        cargo_print(&format!("include={}", include_dir));
++        return;
++    }
++
+     if target_arch == "wasm32" || target_os == "hermit" {
+         cargo_print(&"rustc-cfg=feature=\"std\"");
+     }
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/Cargo.toml /tmp/zstd-sys-zos/Cargo.toml
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/zstd-sys-zos/Cargo.toml	2026-08-11 12:41:22.021888030 -0400
+@@ -13,7 +13,7 @@
+ edition = "2018"
+ rust-version = "1.64"
+ name = "zstd-sys"
+-version = "2.0.15+zstd.1.5.7"
++version = "2.0.16+zstd.1.5.7"
+ authors = ["Alexandre Bury <alexandre.bury@gmail.com>"]
+ build = "build.rs"
+ links = "zstd"
+@@ -81,11 +81,8 @@
+ doctest = false
+ 
+ [build-dependencies.bindgen]
+-version = "0.71"
+-features = [
+-    "runtime",
+-    "which-rustfmt",
+-]
++version = "0.72"
++features = ["runtime"]
+ optional = true
+ default-features = false
+ 
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/.cargo_vcs_info.json /tmp/zstd-sys-zos/.cargo_vcs_info.json
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zstd-sys-2.0.15+zstd.1.5.7/.cargo_vcs_info.json	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/zstd-sys-zos/.cargo_vcs_info.json	2026-08-11 12:41:22.021888030 -0400
+@@ -1,6 +1,6 @@
+ {
+   "git": {
+-    "sha1": "229054099aa73f7e861762f687d7e07cac1d9b3b"
++    "sha1": "434ca4cb364e8a81846a2d99d430977e07b15a52"
+   },
+   "path_in_vcs": "zstd-safe/zstd-sys"
+ }
+\ No newline at end of file

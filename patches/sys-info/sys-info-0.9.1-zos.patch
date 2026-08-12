@@ -1,0 +1,43 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sys-info-0.9.1/build.rs /tmp/sys-info-zos/build.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sys-info-0.9.1/build.rs	1973-11-29 16:33:09.000000000 -0500
++++ /tmp/sys-info-zos/build.rs	2026-08-11 13:24:49.419427246 -0400
+@@ -35,6 +35,11 @@
+             println!("cargo:rustc-flags=-l pthread");
+             builder.file("c/netbsd.c")
+         },
++        "zos" => {
++            // z/OS: sys-info is best-effort; skip C compilation
++            // (most /proc-style queries won't work on z/OS)
++            return;
++        },
+         _ => panic!("unsupported system: {}", target_os)
+     };
+     builder.compile("info");
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sys-info-0.9.1/lib.rs /tmp/sys-info-zos/lib.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sys-info-0.9.1/lib.rs	1973-11-29 16:33:09.000000000 -0500
++++ /tmp/sys-info-zos/lib.rs	2026-08-11 13:28:57.141180661 -0400
+@@ -792,7 +792,12 @@
+         if libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf_size) < 0 {
+             return Err(Error::IO(io::Error::last_os_error()));
+         }
+-        let hostname_len = libc::strnlen(buf.as_ptr() as *const libc::c_char, buf_size);
++        let hostname_len = {
++            #[cfg(not(target_os = "zos"))]
++            { libc::strnlen(buf.as_ptr() as *const libc::c_char, buf_size) }
++            #[cfg(target_os = "zos")]
++            { libc::strlen(buf.as_ptr() as *const libc::c_char).min(buf_size) }
++        };
+         buf.set_len(hostname_len);
+         Ok(ffi::CString::new(buf).unwrap().into_string().unwrap())
+     }
+@@ -812,7 +817,9 @@
+ pub fn boottime() -> Result<timeval, Error> {
+     let mut bt = timeval {
+         tv_sec: 0,
+-        tv_usec: 0
++        tv_usec: 0,
++        #[cfg(target_os = "zos")]
++        tv_usec_pad: 0,
+     };
+ 
+     #[cfg(any(target_os = "linux", target_os="android"))]

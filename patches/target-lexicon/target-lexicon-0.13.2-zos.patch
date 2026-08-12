@@ -1,0 +1,353 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' '--exclude=.github' '--exclude=.gitignore' '--exclude=.rustfmt.toml' '--exclude=examples' '--exclude=scripts' '--exclude=.cargo_vcs_info.json' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/data_model.rs /tmp/target-lexicon-zos/src/data_model.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/data_model.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/target-lexicon-zos/src/data_model.rs	2026-08-09 12:22:06.820421854 -0400
+@@ -86,7 +86,8 @@
+ 
+         match self {
+             LP32 => Size::U16,
+-            ILP32 | LLP64 | LP64 | ILP64 => Size::U32,
++            ILP32 | LLP64 | LP64 => Size::U32,
++            ILP64 => Size::U64,
+         }
+     }
+     /// The size of a C `long`. This is required to be at least 32 bits.
+@@ -94,8 +95,8 @@
+         use CDataModel::*;
+ 
+         match self {
+-            LP32 | ILP32 | LLP64 | ILP64 => Size::U32,
+-            LP64 => Size::U64,
++            LP32 | ILP32 | LLP64 => Size::U32,
++            LP64 | ILP64 => Size::U64,
+         }
+     }
+     /// The size of a C `long long`. This is required (in C99+) to be at least 64 bits.
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' '--exclude=.github' '--exclude=.gitignore' '--exclude=.rustfmt.toml' '--exclude=examples' '--exclude=scripts' '--exclude=.cargo_vcs_info.json' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/host.rs /tmp/target-lexicon-zos/src/host.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/host.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/target-lexicon-zos/src/host.rs	2026-08-09 12:22:06.820421854 -0400
+@@ -13,6 +13,13 @@
+         assert_eq!(OperatingSystem::host(), OperatingSystem::Aix);
+     }
+ 
++    #[cfg(target_os = "cygwin")]
++    #[test]
++    fn test_cygwin() {
++        use super::*;
++        assert_eq!(OperatingSystem::host(), OperatingSystem::Cygwin);
++    }
++
+     #[cfg(target_os = "linux")]
+     #[test]
+     fn test_linux() {
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' '--exclude=.github' '--exclude=.gitignore' '--exclude=.rustfmt.toml' '--exclude=examples' '--exclude=scripts' '--exclude=.cargo_vcs_info.json' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/targets.rs /tmp/target-lexicon-zos/src/targets.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/targets.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/target-lexicon-zos/src/targets.rs	2026-08-09 12:22:39.748733316 -0400
+@@ -56,6 +56,8 @@
+     /// See https://wiki.polygon.technology/docs/category/zk-assembly/
+     #[cfg(feature = "arch_zkasm")]
+     ZkAsm,
++    #[cfg(feature = "arch_z80")]
++    Z80(Z80Architecture),
+ }
+ 
+ #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+@@ -448,6 +450,7 @@
+     Riscv64,
+     Riscv64gc,
+     Riscv64imac,
++    Riscv64a23,
+ }
+ 
+ impl Riscv64Architecture {
+@@ -459,6 +462,7 @@
+             Riscv64 => Cow::Borrowed("riscv64"),
+             Riscv64gc => Cow::Borrowed("riscv64gc"),
+             Riscv64imac => Cow::Borrowed("riscv64imac"),
++            Riscv64a23 => Cow::Borrowed("riscv64a23"),
+         }
+     }
+ }
+@@ -536,6 +540,43 @@
+     }
+ }
+ 
++#[cfg(feature = "arch_z80")]
++#[cfg_attr(feature = "rust_1_40", non_exhaustive)]
++#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
++#[allow(missing_docs)]
++pub enum Z80Architecture {
++    Z80,
++    Z180,
++    Ez80,
++    Sm83,
++    Rabbit2000,
++    Rabbit2000A,
++    Rabbit3000,
++    Rabbit3000A,
++    Tlcs90,
++    R800,
++}
++
++#[cfg(feature = "arch_z80")]
++impl Z80Architecture {
++    pub fn into_str(self) -> Cow<'static, str> {
++        use Z80Architecture::*;
++
++        match self {
++            Z80 => Cow::Borrowed("z80"),
++            Z180 => Cow::Borrowed("z180"),
++            Ez80 => Cow::Borrowed("ez80"),
++            Sm83 => Cow::Borrowed("sm83"),
++            Rabbit2000 => Cow::Borrowed("rabbit2000"),
++            Rabbit2000A => Cow::Borrowed("rabbit2000a"),
++            Rabbit3000 => Cow::Borrowed("rabbit3000"),
++            Rabbit3000A => Cow::Borrowed("rabbit3000a"),
++            Tlcs90 => Cow::Borrowed("tlcs90"),
++            R800 => Cow::Borrowed("r800"),
++        }
++    }
++}
++
+ /// A string for a `Vendor::Custom` that can either be used in `const`
+ /// contexts or hold dynamic strings.
+ #[derive(Clone, Debug, Eq)]
+@@ -656,6 +697,7 @@
+     Bitrig,
+     Cloudabi,
+     Cuda,
++    Cygwin,
+     /// The general [Darwin][darwin-wiki] core OS.
+     ///
+     /// Generally, `-mmacosx-version-min=...` or similar flags are required by
+@@ -702,6 +744,7 @@
+     WasiP2,
+     WatchOS(Option<DeploymentTarget>),
+     Windows,
++    Zos,
+     /// An alternate name for [visionOS][Self::VisionOS].
+     XROS(Option<DeploymentTarget>),
+ }
+@@ -731,6 +774,7 @@
+             Bitrig => Cow::Borrowed("bitrig"),
+             Cloudabi => Cow::Borrowed("cloudabi"),
+             Cuda => Cow::Borrowed("cuda"),
++            Cygwin => Cow::Borrowed("cygwin"),
+             Darwin(deployment_target) => darwin_version("darwin", deployment_target),
+             Dragonfly => Cow::Borrowed("dragonfly"),
+             Emscripten => Cow::Borrowed("emscripten"),
+@@ -764,6 +808,7 @@
+             WatchOS(deployment_target) => darwin_version("watchos", deployment_target),
+             Windows => Cow::Borrowed("windows"),
+             XROS(deployment_target) => darwin_version("xros", deployment_target),
++            Zos => Cow::Borrowed("zos"),
+         }
+     }
+ 
+@@ -956,6 +1001,8 @@
+             | Sparcv9 => Ok(Endianness::Big),
+             #[cfg(feature="arch_zkasm")]
+             ZkAsm => Ok(Endianness::Big),
++            #[cfg(feature = "arch_z80")]
++            Z80(_) => Ok(Endianness::Little),
+         }
+     }
+ 
+@@ -1004,6 +1051,8 @@
+             | Clever(_) => Ok(PointerWidth::U64),
+             #[cfg(feature="arch_zkasm")]
+             ZkAsm => Ok(PointerWidth::U64),
++            #[cfg(feature = "arch_z80")]
++            Z80(_) => Ok(PointerWidth::U16),
+         }
+     }
+ 
+@@ -1057,6 +1106,8 @@
+             Clever(ver) => ver.into_str(),
+             #[cfg(feature = "arch_zkasm")]
+             ZkAsm => Cow::Borrowed("zkasm"),
++            #[cfg(feature = "arch_z80")]
++            Z80(z80) => z80.into_str(),
+         }
+     }
+ }
+@@ -1070,6 +1121,7 @@
+             _ => BinaryFormat::Unknown,
+         },
+         OperatingSystem::Aix => BinaryFormat::Xcoff,
++        OperatingSystem::Zos => BinaryFormat::Xcoff,
+         os if os.is_like_darwin() => BinaryFormat::Macho,
+         OperatingSystem::Windows => BinaryFormat::Coff,
+         OperatingSystem::Nebulet
+@@ -1134,6 +1186,13 @@
+     }
+ }
+ 
++#[cfg(feature = "arch_z80")]
++impl fmt::Display for Z80Architecture {
++    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
++        f.write_str(&self.into_str())
++    }
++}
++
+ impl fmt::Display for Architecture {
+     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+         f.write_str(&self.into_str())
+@@ -1250,6 +1309,7 @@
+             "riscv64" => Riscv64,
+             "riscv64gc" => Riscv64gc,
+             "riscv64imac" => Riscv64imac,
++            "riscv64a23" => Riscv64a23,
+             _ => return Err(()),
+         })
+     }
+@@ -1302,6 +1362,29 @@
+     }
+ }
+ 
++#[cfg(feature = "arch_z80")]
++impl FromStr for Z80Architecture {
++    type Err = ();
++
++    fn from_str(s: &str) -> Result<Self, ()> {
++        use Z80Architecture::*;
++
++        Ok(match s {
++            "z80" => Z80,
++            "z180" => Z180,
++            "ez80" => Ez80,
++            "sm83" => Sm83,
++            "rabbit2000" => Rabbit2000,
++            "rabbit2000a" => Rabbit2000A,
++            "rabbit3000" => Rabbit3000,
++            "rabbit3000a" => Rabbit3000A,
++            "tlcs90" => Tlcs90,
++            "r800" => R800,
++            _ => return Err(()),
++        })
++    }
++}
++
+ impl FromStr for Architecture {
+     type Err = ();
+ 
+@@ -1356,6 +1439,12 @@
+                 } else if let Ok(clever) = CleverArchitecture::from_str(s) {
+                     Clever(clever)
+                 } else {
++                    #[cfg(feature = "arch_z80")]
++                    {
++                        if let Ok(z80) = Z80Architecture::from_str(s) {
++                            return Ok(Architecture::Z80(z80));
++                        }
++                    }
+                     return Err(());
+                 }
+             }
+@@ -1542,6 +1631,7 @@
+             "bitrig" => Bitrig,
+             "cloudabi" => Cloudabi,
+             "cuda" => Cuda,
++            "cygwin" => Cygwin,
+             "dragonfly" => Dragonfly,
+             "emscripten" => Emscripten,
+             "freebsd" => Freebsd,
+@@ -1568,6 +1658,7 @@
+             "wasip2" => WasiP2,
+             "windows" => Windows,
+             "espidf" => Espidf,
++            "zos" => Zos,
+             _ => return Err(()),
+         })
+     }
+@@ -1842,6 +1933,7 @@
+             "riscv64gc-unknown-fuchsia",
+             "riscv64gc-unknown-hermit",
+             "riscv64gc-unknown-linux-gnu",
++            "riscv64a23-unknown-linux-gnu",
+             "riscv64gc-unknown-linux-musl",
+             "riscv64gc-unknown-netbsd",
+             "riscv64gc-unknown-none-elf",
+@@ -1892,6 +1984,7 @@
+             "x86_64-linux-kernel", // Changed to x86_64-unknown-none-linuxkernel in 1.53.0
+             "x86_64-apple-macosx",
+             "x86_64-apple-macosx10.7.0",
++            "x86_64-pc-cygwin",
+             "x86_64-pc-solaris",
+             "x86_64-pc-windows-gnu",
+             "x86_64-pc-windows-gnullvm",
+@@ -1934,6 +2027,12 @@
+             "xtensa-esp32s3-none-elf",
+             #[cfg(feature = "arch_zkasm")]
+             "zkasm-unknown-unknown",
++            #[cfg(feature = "arch_z80")]
++            "z80-zilog-none",
++            #[cfg(feature = "arch_z80")]
++            "sm83-nintendo-none",
++            #[cfg(feature = "arch_z80")]
++            "tlcs90-toshiba-none",
+         ];
+ 
+         for target in targets.iter() {
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' '--exclude=.github' '--exclude=.gitignore' '--exclude=.rustfmt.toml' '--exclude=examples' '--exclude=scripts' '--exclude=.cargo_vcs_info.json' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/triple.rs /tmp/target-lexicon-zos/src/triple.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.13.2/src/triple.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/target-lexicon-zos/src/triple.rs	2026-08-09 12:22:54.748839787 -0400
+@@ -144,6 +144,7 @@
+             OperatingSystem::Nebulet
+             | OperatingSystem::Emscripten
+             | OperatingSystem::Wasi
++            | OperatingSystem::Zos
+             | OperatingSystem::Unknown => match self.architecture {
+                 Architecture::Wasm32 => CallingConvention::WasmBasicCAbi,
+                 _ => return Err(()),
+15c15
+< version = "0.13.2"
+---
+> version = "0.13.5"
+17a18,24
+> include = [
+>     "Cargo.toml",
+>     "README.md",
+>     "LICENSE",
+>     "build.rs",
+>     "src/**/*.rs",
+> ]
+36a44,56
+> [badges.maintenance]
+> status = "passively-maintained"
+> 
+> [features]
+> arch_z80 = []
+> arch_zkasm = []
+> default = []
+> serde_support = [
+>     "serde",
+>     "std",
+> ]
+> std = []
+> 
+41,48d60
+< [[example]]
+< name = "host"
+< path = "examples/host.rs"
+< 
+< [[example]]
+< name = "misc"
+< path = "examples/misc.rs"
+< 
+56,66c68,71
+< [features]
+< arch_zkasm = []
+< default = []
+< serde_support = [
+<     "serde",
+<     "std",
+< ]
+< std = []
+< 
+< [badges.maintenance]
+< status = "passively-maintained"
+---
+> [lints.rust.unexpected_cfgs]
+> level = "warn"
+> priority = 0
+> check-cfg = ['cfg(feature, values("rust_1_40", "cargo-clippy"))']

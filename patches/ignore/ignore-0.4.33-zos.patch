@@ -1,0 +1,79 @@
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ignore-0.4.33/Cargo.toml	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ignore-0.4.33/Cargo.toml	2026-08-11 10:09:13.366398913 -0400
+@@ -11,7 +11,6 @@
+ 
+ [package]
+ edition = "2024"
+-rust-version = "1.88"
+ name = "ignore"
+ version = "0.4.33"
+ authors = ["Andrew Gallant <jamslam@gmail.com>"]
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ignore-0.4.33/src/incremental.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ignore-0.4.33/src/incremental.rs	2026-08-11 13:39:06.425472364 -0400
+@@ -271,23 +271,24 @@
+         if !is_dir
+             && !mat.is_ignore()
+             && valid
+-            && let Some(max_filesize) = self.options.max_filesize
+         {
+-            let path = self.root().join(relative);
+-            let result = if self.options.follow_links {
+-                path.metadata()
+-            } else {
+-                path.symlink_metadata()
+-            };
+-            match result {
+-                Ok(md) if md.len() > max_filesize => {
+-                    return IncrementalMatch::ignore();
+-                }
+-                Ok(_) => {}
+-                Err(err) => {
+-                    // Record the error but otherwise fall through
+-                    let err = Error::from(err);
+-                    errs.push(err.with_path(path));
++            if let Some(max_filesize) = self.options.max_filesize {
++                let path = self.root().join(relative);
++                let result = if self.options.follow_links {
++                    path.metadata()
++                } else {
++                    path.symlink_metadata()
++                };
++                match result {
++                    Ok(md) if md.len() > max_filesize => {
++                        return IncrementalMatch::ignore();
++                    }
++                    Ok(_) => {}
++                    Err(err) => {
++                        // Record the error but otherwise fall through
++                        let err = Error::from(err);
++                        errs.push(err.with_path(path));
++                    }
+                 }
+             }
+         }
+@@ -334,15 +335,17 @@
+             relative.components().next_back().is_some_and(|component| {
+                 matches!(component, std::path::Component::Normal(_))
+             });
+-        if has_normal_final_component && let Some(parent) = relative.parent() {
+-            match self.dirs.get(parent) {
+-                Some(CachedDir::Allowed(ignore)) => {
+-                    return Some(self.match_path(ignore, relative, is_dir));
+-                }
+-                Some(CachedDir::Ignored) => {
+-                    return Some(IncrementalMatch::ignore());
++        if has_normal_final_component {
++            if let Some(parent) = relative.parent() {
++                match self.dirs.get(parent) {
++                    Some(CachedDir::Allowed(ignore)) => {
++                        return Some(self.match_path(ignore, relative, is_dir));
++                    }
++                    Some(CachedDir::Ignored) => {
++                        return Some(IncrementalMatch::ignore());
++                    }
++                    None => {}
+                 }
+-                None => {}
+             }
+         }
+ 

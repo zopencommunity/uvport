@@ -1,0 +1,515 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/errno.rs /tmp/nix-031-zos/src/errno.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/errno.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/nix-031-zos/src/errno.rs	2026-08-11 15:11:20.683829318 -0400
+@@ -49,6 +49,10 @@
+         unsafe fn errno_location() -> *mut c_int {
+             unsafe { libc::_Errno() }
+         }
++    } else if #[cfg(target_os = "zos")] {
++        unsafe fn errno_location() -> *mut c_int {
++            unsafe { libc::__errno() }
++        }
+     }
+ }
+ 
+@@ -210,6 +214,8 @@
+         EBADF => "Bad file number",
+         ECHILD => "No child processes",
+         EAGAIN => "Try again",
++        #[cfg(target_os = "zos")]
++        EWOULDBLOCK => "Operation would block",
+         ENOMEM => "Out of memory",
+         EACCES => "Permission denied",
+         EFAULT => "Bad address",
+@@ -424,6 +430,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ENOSTR => "Device not a stream",
+ 
+@@ -434,6 +441,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ENODATA => "No data available",
+ 
+@@ -444,6 +452,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ETIME => "Timer expired",
+ 
+@@ -454,6 +463,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ENOSR => "Out of streams resources",
+ 
+@@ -482,6 +492,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EREMOTE => "Object is remote",
+ 
+@@ -489,6 +500,8 @@
+             linux_android,
+             solarish,
+             target_os = "aix",
++            target_os = "zos",
++            target_os = "zos",
+             target_os = "fuchsia",
+             target_os = "emscripten",
+         ))]
+@@ -528,6 +541,8 @@
+             target_os = "fuchsia",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos",
++            target_os = "zos",
+         ))]
+         EPROTO => "Protocol error",
+ 
+@@ -537,6 +552,8 @@
+             target_os = "aix",
+             target_os = "fuchsia",
+             target_os = "emscripten",
++            target_os = "zos",
++            target_os = "zos",
+         ))]
+         EMULTIHOP => "Multihop attempted",
+ 
+@@ -554,6 +571,7 @@
+             target_os = "fuchsia",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EBADMSG => "Not a data message",
+ 
+@@ -568,6 +586,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EOVERFLOW => "Value too large for defined data type",
+ 
+@@ -652,6 +671,7 @@
+             target_os = "openbsd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EILSEQ => "Illegal byte sequence",
+ 
+@@ -679,6 +699,7 @@
+             target_os = "fuchsia",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EUSERS => "Too many users",
+ 
+@@ -689,6 +710,7 @@
+             target_os = "redox",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EOPNOTSUPP => "Operation not supported on transport endpoint",
+ 
+@@ -698,6 +720,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ESTALE => "Stale file handle",
+ 
+@@ -741,6 +764,7 @@
+             target_os = "fuchsia",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EDQUOT => "Quota exceeded",
+ 
+@@ -769,6 +793,7 @@
+             target_os = "haiku",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ECANCELED => "Operation canceled",
+ 
+@@ -807,6 +832,7 @@
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EOWNERDEAD => "Owner died",
+ 
+@@ -819,6 +845,7 @@
+             target_os = "fuchsia",
+             target_os = "emscripten",
+             target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ENOTRECOVERABLE => "State not recoverable",
+ 
+@@ -916,7 +943,8 @@
+             solarish,
+             target_os = "haiku",
+             target_os = "hurd",
+-            target_os = "cygwin"
++            target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         ENOTSUP => "Operation not supported",
+ 
+@@ -924,7 +952,8 @@
+             bsd,
+             target_os = "aix",
+             target_os = "hurd",
+-            target_os = "cygwin"
++            target_os = "cygwin",
++            target_os = "zos"
+         ))]
+         EPROCLIM => "Too many processes",
+ 
+@@ -3360,6 +3389,207 @@
+             _ => UnknownErrno,
+         }
+     }
++}
++
++#[cfg(target_os = "zos")]
++mod consts {
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    #[repr(i32)]
++    #[non_exhaustive]
++    pub enum Errno {
++        UnknownErrno = 0,
++        EPERM = libc::EPERM,
++        ENOENT = libc::ENOENT,
++        ESRCH = libc::ESRCH,
++        EINTR = libc::EINTR,
++        EIO = libc::EIO,
++        ENXIO = libc::ENXIO,
++        E2BIG = libc::E2BIG,
++        ENOEXEC = libc::ENOEXEC,
++        EBADF = libc::EBADF,
++        ECHILD = libc::ECHILD,
++        EAGAIN = libc::EAGAIN,
++        ENOMEM = libc::ENOMEM,
++        EACCES = libc::EACCES,
++        EFAULT = libc::EFAULT,
++        ENOTBLK = libc::ENOTBLK,
++        EBUSY = libc::EBUSY,
++        EEXIST = libc::EEXIST,
++        EXDEV = libc::EXDEV,
++        ENODEV = libc::ENODEV,
++        ENOTDIR = libc::ENOTDIR,
++        EISDIR = libc::EISDIR,
++        EINVAL = libc::EINVAL,
++        ENFILE = libc::ENFILE,
++        EMFILE = libc::EMFILE,
++        ENOTTY = libc::ENOTTY,
++        ETXTBSY = libc::ETXTBSY,
++        EFBIG = libc::EFBIG,
++        ENOSPC = libc::ENOSPC,
++        ESPIPE = libc::ESPIPE,
++        EROFS = libc::EROFS,
++        EMLINK = libc::EMLINK,
++        EPIPE = libc::EPIPE,
++        EDOM = libc::EDOM,
++        ERANGE = libc::ERANGE,
++        EDEADLK = libc::EDEADLK,
++        ENAMETOOLONG = libc::ENAMETOOLONG,
++        ENOLCK = libc::ENOLCK,
++        ENOSYS = libc::ENOSYS,
++        ENOTEMPTY = libc::ENOTEMPTY,
++        ELOOP = libc::ELOOP,
++        ENOMSG = libc::ENOMSG,
++        EIDRM = libc::EIDRM,
++        EINPROGRESS = libc::EINPROGRESS,
++        EALREADY = libc::EALREADY,
++        ENOTSOCK = libc::ENOTSOCK,
++        EDESTADDRREQ = libc::EDESTADDRREQ,
++        EMSGSIZE = libc::EMSGSIZE,
++        EPROTOTYPE = libc::EPROTOTYPE,
++        ENOPROTOOPT = libc::ENOPROTOOPT,
++        EPROTONOSUPPORT = libc::EPROTONOSUPPORT,
++        ESOCKTNOSUPPORT = libc::ESOCKTNOSUPPORT,
++        EPFNOSUPPORT = libc::EPFNOSUPPORT,
++        EAFNOSUPPORT = libc::EAFNOSUPPORT,
++        EADDRINUSE = libc::EADDRINUSE,
++        EADDRNOTAVAIL = libc::EADDRNOTAVAIL,
++        ENETDOWN = libc::ENETDOWN,
++        ENETUNREACH = libc::ENETUNREACH,
++        ENETRESET = libc::ENETRESET,
++        ECONNABORTED = libc::ECONNABORTED,
++        ECONNRESET = libc::ECONNRESET,
++        ENOBUFS = libc::ENOBUFS,
++        EISCONN = libc::EISCONN,
++        ENOTCONN = libc::ENOTCONN,
++        ESHUTDOWN = libc::ESHUTDOWN,
++        ETOOMANYREFS = libc::ETOOMANYREFS,
++        ETIMEDOUT = libc::ETIMEDOUT,
++        ECONNREFUSED = libc::ECONNREFUSED,
++        EHOSTDOWN = libc::EHOSTDOWN,
++        EHOSTUNREACH = libc::EHOSTUNREACH,
++        ENOLINK = libc::ENOLINK,
++        EPROTO = libc::EPROTO,
++        EMULTIHOP = libc::EMULTIHOP,
++        EBADMSG = libc::EBADMSG,
++        EOVERFLOW = libc::EOVERFLOW,
++        EILSEQ = libc::EILSEQ,
++        EOWNERDEAD = libc::EOWNERDEAD,
++        ENOTRECOVERABLE = libc::ENOTRECOVERABLE,
++        ENOTSUP = libc::ENOTSUP,
++        EPROCLIM = libc::EPROCLIM,
++        EUSERS = libc::EUSERS,
++        EDQUOT = libc::EDQUOT,
++        ESTALE = libc::ESTALE,
++        EREMOTE = libc::EREMOTE,
++        ECANCELED = libc::ECANCELED,
++        ENODATA = libc::ENODATA,
++        ENOSR = libc::ENOSR,
++        ENOSTR = libc::ENOSTR,
++        ETIME = libc::ETIME,
++        EOPNOTSUPP = libc::EOPNOTSUPP,
++        EWOULDBLOCK = libc::EWOULDBLOCK,
++    }
++
++    #[deprecated(
++        since = "0.28.0",
++        note = "please use `Errno::from_raw()` instead"
++    )]
++    pub const fn from_i32(e: i32) -> Errno {
++        use self::Errno::*;
++        match e {
++            libc::EPERM => EPERM,
++            libc::ENOENT => ENOENT,
++            libc::ESRCH => ESRCH,
++            libc::EINTR => EINTR,
++            libc::EIO => EIO,
++            libc::ENXIO => ENXIO,
++            libc::E2BIG => E2BIG,
++            libc::ENOEXEC => ENOEXEC,
++            libc::EBADF => EBADF,
++            libc::ECHILD => ECHILD,
++            libc::EAGAIN => EAGAIN,
++            libc::ENOMEM => ENOMEM,
++            libc::EACCES => EACCES,
++            libc::EFAULT => EFAULT,
++            libc::ENOTBLK => ENOTBLK,
++            libc::EBUSY => EBUSY,
++            libc::EEXIST => EEXIST,
++            libc::EXDEV => EXDEV,
++            libc::ENODEV => ENODEV,
++            libc::ENOTDIR => ENOTDIR,
++            libc::EISDIR => EISDIR,
++            libc::EINVAL => EINVAL,
++            libc::ENFILE => ENFILE,
++            libc::EMFILE => EMFILE,
++            libc::ENOTTY => ENOTTY,
++            libc::ETXTBSY => ETXTBSY,
++            libc::EFBIG => EFBIG,
++            libc::ENOSPC => ENOSPC,
++            libc::ESPIPE => ESPIPE,
++            libc::EROFS => EROFS,
++            libc::EMLINK => EMLINK,
++            libc::EPIPE => EPIPE,
++            libc::EDOM => EDOM,
++            libc::ERANGE => ERANGE,
++            libc::EDEADLK => EDEADLK,
++            libc::ENAMETOOLONG => ENAMETOOLONG,
++            libc::ENOLCK => ENOLCK,
++            libc::ENOSYS => ENOSYS,
++            libc::ENOTEMPTY => ENOTEMPTY,
++            libc::ELOOP => ELOOP,
++            libc::ENOMSG => ENOMSG,
++            libc::EIDRM => EIDRM,
++            libc::EINPROGRESS => EINPROGRESS,
++            libc::EALREADY => EALREADY,
++            libc::ENOTSOCK => ENOTSOCK,
++            libc::EDESTADDRREQ => EDESTADDRREQ,
++            libc::EMSGSIZE => EMSGSIZE,
++            libc::EPROTOTYPE => EPROTOTYPE,
++            libc::ENOPROTOOPT => ENOPROTOOPT,
++            libc::EPROTONOSUPPORT => EPROTONOSUPPORT,
++            libc::ESOCKTNOSUPPORT => ESOCKTNOSUPPORT,
++            libc::EPFNOSUPPORT => EPFNOSUPPORT,
++            libc::EAFNOSUPPORT => EAFNOSUPPORT,
++            libc::EADDRINUSE => EADDRINUSE,
++            libc::EADDRNOTAVAIL => EADDRNOTAVAIL,
++            libc::ENETDOWN => ENETDOWN,
++            libc::ENETUNREACH => ENETUNREACH,
++            libc::ENETRESET => ENETRESET,
++            libc::ECONNABORTED => ECONNABORTED,
++            libc::ECONNRESET => ECONNRESET,
++            libc::ENOBUFS => ENOBUFS,
++            libc::EISCONN => EISCONN,
++            libc::ENOTCONN => ENOTCONN,
++            libc::ESHUTDOWN => ESHUTDOWN,
++            libc::ETOOMANYREFS => ETOOMANYREFS,
++            libc::ETIMEDOUT => ETIMEDOUT,
++            libc::ECONNREFUSED => ECONNREFUSED,
++            libc::EHOSTDOWN => EHOSTDOWN,
++            libc::EHOSTUNREACH => EHOSTUNREACH,
++            libc::ENOLINK => ENOLINK,
++            libc::EPROTO => EPROTO,
++            libc::EMULTIHOP => EMULTIHOP,
++            libc::EBADMSG => EBADMSG,
++            libc::EOVERFLOW => EOVERFLOW,
++            libc::EILSEQ => EILSEQ,
++            libc::EOWNERDEAD => EOWNERDEAD,
++            libc::ENOTRECOVERABLE => ENOTRECOVERABLE,
++            libc::ENOTSUP => ENOTSUP,
++            libc::EPROCLIM => EPROCLIM,
++            libc::EUSERS => EUSERS,
++            libc::EDQUOT => EDQUOT,
++            libc::ESTALE => ESTALE,
++            libc::EREMOTE => EREMOTE,
++            libc::ECANCELED => ECANCELED,
++            libc::ENODATA => ENODATA,
++            libc::ENOSR => ENOSR,
++            libc::ENOSTR => ENOSTR,
++            libc::ETIME => ETIME,
++            libc::EOPNOTSUPP => EOPNOTSUPP,
++            libc::EWOULDBLOCK => EWOULDBLOCK,
++            _ => UnknownErrno,
++        }
++    }
+ }
+ 
+ #[cfg(target_os = "hurd")]
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/sys/signal.rs /tmp/nix-031-zos/src/sys/signal.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/sys/signal.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/nix-031-zos/src/sys/signal.rs	2026-08-11 15:06:23.663392063 -0400
+@@ -105,13 +105,15 @@
+         SIGSYS,
+         #[cfg(not(any(linux_android, target_os = "emscripten",
+                       target_os = "fuchsia",
+-                      target_os = "redox", target_os = "haiku")))]
++                      target_os = "redox", target_os = "haiku",
++                      target_os = "zos")))]
+         /// Emulator trap
+         SIGEMT,
+         #[cfg(not(any(linux_android, target_os = "emscripten",
+                       target_os = "fuchsia", target_os = "redox",
+                       target_os = "haiku", target_os = "aix",
+-                      target_os = "solaris", target_os = "cygwin")))]
++                      target_os = "solaris", target_os = "cygwin",
++                      target_os = "zos")))]
+         /// Information request
+         SIGINFO,
+     }
+@@ -182,6 +184,7 @@
+                 target_os = "redox",
+                 target_os = "haiku"
+             )))]
++            #[cfg(not(target_os = "zos"))]
+             "SIGEMT" => Signal::SIGEMT,
+             #[cfg(not(any(
+                 linux_android,
+@@ -193,6 +196,7 @@
+                 target_os = "solaris",
+                 target_os = "cygwin"
+             )))]
++            #[cfg(not(target_os = "zos"))]
+             "SIGINFO" => Signal::SIGINFO,
+             _ => return Err(Errno::EINVAL),
+         })
+@@ -268,6 +272,7 @@
+                 target_os = "redox",
+                 target_os = "haiku"
+             )))]
++            #[cfg(not(target_os = "zos"))]
+             Signal::SIGEMT => "SIGEMT",
+             #[cfg(not(any(
+                 linux_android,
+@@ -279,6 +284,7 @@
+                 target_os = "solaris",
+                 target_os = "cygwin"
+             )))]
++            #[cfg(not(target_os = "zos"))]
+             Signal::SIGINFO => "SIGINFO",
+         }
+     }
+@@ -377,7 +383,8 @@
+     target_os = "redox",
+     target_os = "haiku",
+     target_os = "solaris",
+-    target_os = "cygwin"
++    target_os = "cygwin",
++    target_os = "zos"
+ )))]
+ #[cfg(feature = "signal")]
+ const SIGNALS: [Signal; 31] = [
+@@ -386,6 +393,14 @@
+     SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ, SIGVTALRM,
+     SIGPROF, SIGWINCH, SIGIO, SIGSYS, SIGEMT, SIGINFO,
+ ];
++#[cfg(target_os = "zos")]
++#[cfg(feature = "signal")]
++const SIGNALS: [Signal; 29] = [
++    SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGKILL,
++    SIGUSR1, SIGSEGV, SIGUSR2, SIGPIPE, SIGALRM, SIGTERM, SIGCHLD, SIGCONT,
++    SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ, SIGVTALRM,
++    SIGPROF, SIGWINCH, SIGIO, SIGSYS,
++];
+ 
+ feature! {
+ #![feature = "signal"]
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/sys/time.rs /tmp/nix-031-zos/src/sys/time.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nix-0.31.3/src/sys/time.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/nix-031-zos/src/sys/time.rs	2026-08-11 15:18:20.424685028 -0400
+@@ -533,6 +533,8 @@
+         TimeVal(timeval {
+             tv_sec: seconds as time_t,
+             tv_usec: 0,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+         })
+     }
+ 
+@@ -561,6 +563,8 @@
+         TimeVal(timeval {
+             tv_sec: secs as time_t,
+             tv_usec: micros as suseconds_t,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+         })
+     }
+ 
+@@ -582,6 +586,8 @@
+         TimeVal(timeval {
+             tv_sec: secs as time_t,
+             tv_usec: micros as suseconds_t,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+         })
+     }
+ 
+@@ -622,6 +628,8 @@
+         Self(timeval {
+             tv_sec: seconds,
+             tv_usec: microseconds,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+         })
+     }
+ 

@@ -1,0 +1,12 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/rs-async-zip-4a50f09637424d11/285e487/Cargo.toml /tmp/rs-async-zip-zos/Cargo.toml
+--- /home/itodorov/.cargo/git/checkouts/rs-async-zip-4a50f09637424d11/285e487/Cargo.toml	2026-08-11 10:02:52.413930399 -0400
++++ /tmp/rs-async-zip-zos/Cargo.toml	2026-08-11 15:35:48.646645093 -0400
+@@ -37,7 +37,7 @@
+ crc32fast = "1"
+ futures-lite = { version = "2.1.0", default-features = false, features = ["std"] }
+ pin-project = "1"
+-thiserror = "1"
++thiserror = "2"
+ 
+ async-compression = { version = "0.4.2", default-features = false, features = ["futures-io"], optional = true }
+ tokio = { version = "1", default-features = false, optional = true }

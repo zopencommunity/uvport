@@ -1,0 +1,23 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lzma-sys-0.1.20/build.rs /tmp/lzma-sys-zos/build.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lzma-sys-0.1.20/build.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/lzma-sys-zos/build.rs	2026-08-11 12:41:41.981104996 -0400
+@@ -9,6 +9,19 @@
+ 
+     println!("cargo:rerun-if-changed=build.rs");
+     println!("cargo:rerun-if-env-changed=LZMA_API_STATIC");
++
++    // z/OS: use pre-built static library from zopen community
++    if target == "s390x-ibm-zos" {
++        let lib_dir = env::var("LZMA_LIB_DIR")
++            .unwrap_or_else(|_| "/tmp/zos-sysroot/lzma/lib".to_string());
++        let include_dir = env::var("LZMA_INCLUDE_DIR")
++            .unwrap_or_else(|_| "/tmp/zos-sysroot/lzma/include".to_string());
++        println!("cargo:rustc-link-search=native={}", lib_dir);
++        println!("cargo:rustc-link-lib=static=lzma");
++        println!("cargo:include={}", include_dir);
++        println!("cargo:root={}", lib_dir);
++        return;
++    }
+     let want_static = cfg!(feature = "static") || env::var("LZMA_API_STATIC").is_ok();
+     let msvc = target.contains("msvc");
+ 

@@ -1,0 +1,11 @@
+--- /dev/null
++++ b/build.rs
+@@ -0,0 +1,11 @@
++// Auto-enable big_endian mode on big-endian targets (e.g. s390x z/OS).
++// Without this, rkyv uses LE archived types which are not `Portable` on BE hardware.
++fn main() {
++    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENDIAN");
++    if std::env::var("CARGO_CFG_TARGET_ENDIAN").unwrap_or_default() == "big" {
++        println!("cargo:rustc-cfg=feature=\"big_endian\"");
++    }
++}

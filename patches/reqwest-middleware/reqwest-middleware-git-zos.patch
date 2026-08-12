@@ -1,0 +1,26 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-middleware/Cargo.toml /tmp/reqwest-middleware-zos/reqwest-middleware/Cargo.toml
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-middleware/Cargo.toml	2026-08-11 10:02:51.224441999 -0400
++++ /tmp/reqwest-middleware-zos/reqwest-middleware/Cargo.toml	2026-08-11 15:45:39.085790320 -0400
+@@ -23,7 +23,7 @@
+ http = "1.0.0"
+ reqwest = { version = "0.12.0", default-features = false }
+ serde = "1.0.106"
+-thiserror = "2.0"
++thiserror = "2"
+ tower-service = "0.3.0"
+ 
+ [dev-dependencies]
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-middleware/CHANGELOG.md /tmp/reqwest-middleware-zos/reqwest-middleware/CHANGELOG.md
+--- /home/itodorov/.cargo/git/checkouts/reqwest-middleware-74fe5abb02b2101a/7650ed7/reqwest-middleware/CHANGELOG.md	2026-08-11 10:02:51.224344439 -0400
++++ /tmp/reqwest-middleware-zos/reqwest-middleware/CHANGELOG.md	2026-08-11 10:04:04.177369347 -0400
+@@ -6,10 +6,6 @@
+ 
+ ## [Unreleased]
+ 
+-### Changed
+-
+-- Updated `thiserror` to `2.0`
+-
+ ## [0.4.2] - 2025-04-08
+ 
+ ### Added

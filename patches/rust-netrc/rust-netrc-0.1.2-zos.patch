@@ -1,0 +1,9 @@
+diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rust-netrc-0.1.2/Cargo.toml /tmp/rust-netrc-zos/Cargo.toml
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rust-netrc-0.1.2/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/rust-netrc-zos/Cargo.toml	2026-08-11 15:03:24.799957156 -0400
+@@ -42,4 +42,4 @@
+ default-features = false
+ 
+ [dependencies.thiserror]
+-version = "1.0.56"
++version = "2"

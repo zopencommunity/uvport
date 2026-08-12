@@ -1,0 +1,164 @@
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jobserver-0.1.33/src/unix.rs /tmp/jobserver-zos/src/unix.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jobserver-0.1.33/src/unix.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/jobserver-zos/src/unix.rs	2026-08-11 13:03:07.190211606 -0400
+@@ -8,10 +8,9 @@
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ use std::process::Command;
+-use std::ptr;
+ use std::sync::{
+     atomic::{AtomicBool, Ordering},
+-    Arc, Once,
++    Arc,
+ };
+ use std::thread::{self, Builder, JoinHandle};
+ use std::time::Duration;
+@@ -72,30 +71,19 @@
+     unsafe fn mk() -> io::Result<Client> {
+         let mut pipes = [0; 2];
+ 
+-        // Attempt atomically-create-with-cloexec if we can on Linux,
+-        // detected by using the `syscall` function in `libc` to try to work
+-        // with as many kernels/glibc implementations as possible.
++        // Atomically-create-with-cloexec on Linux.
+         #[cfg(target_os = "linux")]
++        if libc::pipe2(pipes.as_mut_ptr(), libc::O_CLOEXEC) == -1 {
++            return Err(io::Error::last_os_error());
++        }
++
++        #[cfg(not(target_os = "linux"))]
+         {
+-            static PIPE2_AVAILABLE: AtomicBool = AtomicBool::new(true);
+-            if PIPE2_AVAILABLE.load(Ordering::SeqCst) {
+-                match libc::syscall(libc::SYS_pipe2, pipes.as_mut_ptr(), libc::O_CLOEXEC) {
+-                    -1 => {
+-                        let err = io::Error::last_os_error();
+-                        if err.raw_os_error() == Some(libc::ENOSYS) {
+-                            PIPE2_AVAILABLE.store(false, Ordering::SeqCst);
+-                        } else {
+-                            return Err(err);
+-                        }
+-                    }
+-                    _ => return Ok(Client::from_fds(pipes[0], pipes[1])),
+-                }
+-            }
++            cvt(libc::pipe(pipes.as_mut_ptr()))?;
++            drop(set_cloexec(pipes[0], true));
++            drop(set_cloexec(pipes[1], true));
+         }
+ 
+-        cvt(libc::pipe(pipes.as_mut_ptr()))?;
+-        drop(set_cloexec(pipes[0], true));
+-        drop(set_cloexec(pipes[1], true));
+         Ok(Client::from_fds(pipes[0], pipes[1]))
+     }
+ 
+@@ -390,19 +378,24 @@
+     state: Arc<super::HelperState>,
+     mut f: Box<dyn FnMut(io::Result<crate::Acquired>) + Send>,
+ ) -> io::Result<Helper> {
+-    static USR1_INIT: Once = Once::new();
+-    let mut err = None;
+-    USR1_INIT.call_once(|| unsafe {
+-        let mut new: libc::sigaction = mem::zeroed();
+-        new.sa_sigaction = sigusr1_handler as usize;
+-        new.sa_flags = libc::SA_SIGINFO as _;
+-        if libc::sigaction(libc::SIGUSR1, &new, ptr::null_mut()) != 0 {
+-            err = Some(io::Error::last_os_error());
+-        }
+-    });
++    #[cfg(not(miri))]
++    {
++        use std::sync::Once;
++
++        static USR1_INIT: Once = Once::new();
++        let mut err = None;
++        USR1_INIT.call_once(|| unsafe {
++            let mut new: libc::sigaction = mem::zeroed();
++            new.sa_sigaction = sigusr1_handler as usize;
++            new.sa_flags = libc::SA_SIGINFO as _;
++            if libc::sigaction(libc::SIGUSR1, &new, std::ptr::null_mut()) != 0 {
++                err = Some(io::Error::last_os_error());
++            }
++        });
+ 
+-    if let Some(e) = err.take() {
+-        return Err(e);
++        if let Some(e) = err.take() {
++            return Err(e);
++        }
+     }
+ 
+     let state2 = state.clone();
+@@ -447,12 +440,14 @@
+             if state.consumer_done {
+                 break;
+             }
++            #[cfg(not(miri))]
+             unsafe {
+                 // Ignore the return value here of `pthread_kill`,
+                 // apparently on OSX if you kill a dead thread it will
+                 // return an error, but on other platforms it may not. In
+                 // that sense we don't actually know if this will succeed or
+                 // not!
++                #[cfg(not(target_os = "zos"))]
+                 libc::pthread_kill(self.thread.as_pthread_t() as _, libc::SIGUSR1);
+             }
+             state = self
+@@ -549,6 +544,7 @@
+     }
+ }
+ 
++#[cfg(not(miri))]
+ extern "C" fn sigusr1_handler(
+     _signum: c_int,
+     _info: *mut libc::siginfo_t,
+@@ -563,12 +559,7 @@
+ 
+     use crate::{test::run_named_fifo_try_acquire_tests, Client};
+ 
+-    use std::{
+-        fs::File,
+-        io::{self, Write},
+-        os::unix::io::AsRawFd,
+-        sync::Arc,
+-    };
++    use std::{fs::File, io::Write, os::unix::io::AsRawFd, sync::Arc};
+ 
+     fn from_imp_client(imp: ClientImp) -> Client {
+         Client {
+@@ -622,7 +613,7 @@
+         #[cfg(not(target_os = "linux"))]
+         assert_eq!(
+             new_client_from_pipe().0.try_acquire().unwrap_err().kind(),
+-            io::ErrorKind::Unsupported
++            std::io::ErrorKind::Unsupported
+         );
+ 
+         #[cfg(target_os = "linux")]
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jobserver-0.1.33/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/jobserver-zos/Cargo.toml	2026-08-11 13:02:58.246261692 -0400
+@@ -11,9 +11,9 @@
+ 
+ [package]
+ edition = "2021"
+-rust-version = "1.63"
++rust-version = "1.85"
+ name = "jobserver"
+-version = "0.1.33"
++version = "0.1.35"
+ authors = ["Alex Crichton <alex@alexcrichton.com>"]
+ build = false
+ autolib = false
+@@ -64,9 +64,9 @@
+ version = "0.2.171"
+ 
+ [target."cfg(unix)".dev-dependencies.nix]
+-version = "0.28.0"
++version = "0.31.3"
+ features = ["fs"]
+ 
+ [target."cfg(windows)".dependencies.getrandom]
+-version = "0.3.2"
++version = "0.4"
+ features = ["std"]

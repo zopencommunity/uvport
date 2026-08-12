@@ -1,0 +1,10 @@
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/home-0.5.12/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/home-0.5.12/Cargo.toml	2026-08-11 10:09:40.353318209 -0400
+@@ -11,7 +11,6 @@
+ 
+ [package]
+ edition = "2024"
+-rust-version = "1.88"
+ name = "home"
+ version = "0.5.12"
+ authors = ["Brian Anderson <andersrb@gmail.com>"]

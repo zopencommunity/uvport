@@ -1,0 +1,10 @@
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/globset-0.4.20/Cargo.toml	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/globset-0.4.20/Cargo.toml	2026-08-11 10:09:13.476399692 -0400
+@@ -11,7 +11,6 @@
+ 
+ [package]
+ edition = "2024"
+-rust-version = "1.88"
+ name = "globset"
+ version = "0.4.20"
+ authors = ["Andrew Gallant <jamslam@gmail.com>"]

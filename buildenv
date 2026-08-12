@@ -33,6 +33,10 @@ zopen_get_version() {
   echo "${UV_VERSION}"
 }
 
+# STATUS: uvx binary is complete (25MB). uv main binary link is in progress.
+# The z/OS binder (IBM LD) hits memory limits with ~9000 GOFF input objects.
+# Once the uv binary is available, this buildenv will be updated with release assets.
+#
 # uv 0.8.13 was cross-compiled from source (astral-sh/uv 0.8.13) on a
 # Linux-on-Power (LoP, ppc64le) host using an IBM-internal Rust cross-compiler
 # targeting s390x-ibm-zos. This is the last 0.8.x release with rust-version = "1.86",

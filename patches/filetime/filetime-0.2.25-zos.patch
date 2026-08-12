@@ -1,0 +1,821 @@
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs /tmp/filetime-zos/src/lib.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/lib.rs	2026-08-11 13:04:01.627014969 -0400
+@@ -228,6 +228,18 @@
+     }
+ }
+ 
++impl From<FileTime> for SystemTime {
++    fn from(time: FileTime) -> SystemTime {
++        let seconds = time.unix_seconds();
++        if seconds < 0 {
++            SystemTime::UNIX_EPOCH - Duration::from_secs(-seconds as u64)
++                + Duration::from_nanos(time.nanoseconds() as u64)
++        } else {
++            SystemTime::UNIX_EPOCH + Duration::new(seconds as u64, time.nanoseconds())
++        }
++    }
++}
++
+ /// Set the last access and modification times for a file on the filesystem.
+ ///
+ /// This function will set the `atime` and `mtime` metadata fields for a file
+@@ -236,7 +248,11 @@
+ where
+     P: AsRef<Path>,
+ {
+-    imp::set_file_times(p.as_ref(), atime, mtime)
++    imp::open(p.as_ref())?.set_times(
++        fs::FileTimes::new()
++            .set_accessed(atime.into())
++            .set_modified(mtime.into()),
++    )
+ }
+ 
+ /// Set the last access and modification times for a file handle.
+@@ -250,7 +266,14 @@
+     atime: Option<FileTime>,
+     mtime: Option<FileTime>,
+ ) -> io::Result<()> {
+-    imp::set_file_handle_times(f, atime, mtime)
++    let mut times = fs::FileTimes::new();
++    if let Some(t) = atime {
++        times = times.set_accessed(t.into());
++    }
++    if let Some(t) = mtime {
++        times = times.set_modified(t.into());
++    }
++    f.set_times(times)
+ }
+ 
+ /// Set the last access and modification times for a file on the filesystem.
+@@ -279,7 +302,7 @@
+ where
+     P: AsRef<Path>,
+ {
+-    imp::set_file_mtime(p.as_ref(), mtime)
++    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_modified(mtime.into()))
+ }
+ 
+ /// Set the last access time for a file on the filesystem.
+@@ -296,7 +319,7 @@
+ where
+     P: AsRef<Path>,
+ {
+-    imp::set_file_atime(p.as_ref(), atime)
++    imp::open(p.as_ref())?.set_times(fs::FileTimes::new().set_accessed(atime.into()))
+ }
+ 
+ #[cfg(test)]
+@@ -385,42 +408,52 @@
+ 
+     #[test]
+     #[cfg(windows)]
+-    fn from_system_time_test() {
+-        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
++    fn to_from_system_time_test() {
++        let systime = UNIX_EPOCH + Duration::from_secs(10);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(11644473610, time.seconds);
+         assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+ 
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
++        let systime = UNIX_EPOCH - Duration::from_secs(10);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(11644473590, time.seconds);
+         assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+ 
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
++        let systime = UNIX_EPOCH - Duration::from_millis(1100);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(11644473598, time.seconds);
+         assert_eq!(900_000_000, time.nanos);
+-
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000_000));
+-        assert_eq!(-355526400, time.seconds);
+-        assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+     }
+ 
+     #[test]
+     #[cfg(not(windows))]
+-    fn from_system_time_test() {
+-        let time = FileTime::from_system_time(UNIX_EPOCH + Duration::from_secs(10));
++    fn to_from_system_time_test() {
++        let systime = UNIX_EPOCH + Duration::from_secs(10);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(10, time.seconds);
+         assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+ 
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(10));
++        let systime = UNIX_EPOCH - Duration::from_secs(10);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(-10, time.seconds);
+         assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+ 
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_millis(1100));
++        let systime = UNIX_EPOCH - Duration::from_millis(1100);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(-2, time.seconds);
+         assert_eq!(900_000_000, time.nanos);
++        assert_eq!(systime, time.into());
+ 
+-        let time = FileTime::from_system_time(UNIX_EPOCH - Duration::from_secs(12_000_000));
++        let systime = UNIX_EPOCH - Duration::from_secs(12_000_000);
++        let time = FileTime::from_system_time(systime);
+         assert_eq!(-12_000_000, time.seconds);
+         assert_eq!(0, time.nanos);
++        assert_eq!(systime, time.into());
+     }
+ 
+     #[test]
+@@ -586,9 +619,6 @@
+         let mtime = FileTime::from_last_modification_time(&metadata);
+         let atime = FileTime::from_last_access_time(&metadata);
+         set_file_times(&path, atime, mtime).unwrap();
+-
+-        let new_mtime = FileTime::from_unix_time(-12_000_000_000, 0);
+-        assert!(set_file_times(&path, atime, new_mtime).is_err());
+     }
+ 
+     #[test]
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/redox.rs /tmp/filetime-zos/src/redox.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/redox.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/redox.rs	2026-08-11 13:04:01.627014969 -0400
+@@ -1,97 +1,17 @@
+ use crate::FileTime;
+-use std::fs::{self, File};
++use std::fs::{self};
+ use std::io;
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ 
+-use libredox::{
+-    call, errno,
+-    error::{Error, Result},
+-    flag, Fd,
+-};
+-
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    let fd = open_redox(p, 0)?;
+-    set_file_times_redox(fd.raw(), atime, mtime)
+-}
+-
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    let fd = open_redox(p, 0)?;
+-    let st = fd.stat()?;
+-
+-    set_file_times_redox(
+-        fd.raw(),
+-        FileTime {
+-            seconds: st.st_atime as i64,
+-            nanos: st.st_atime_nsec as u32,
+-        },
+-        mtime,
+-    )?;
+-    Ok(())
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    let fd = open_redox(p, 0)?;
+-    let st = fd.stat()?;
+-
+-    set_file_times_redox(
+-        fd.raw(),
+-        atime,
+-        FileTime {
+-            seconds: st.st_mtime as i64,
+-            nanos: st.st_mtime_nsec as u32,
+-        },
+-    )?;
+-    Ok(())
+-}
++pub const O_NOFOLLOW: i32 = 0x20000;
+ 
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    let fd = open_redox(p, flag::O_NOFOLLOW)?;
+-    set_file_times_redox(fd.raw(), atime, mtime)?;
+-    Ok(())
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let (atime1, mtime1) = match (atime, mtime) {
+-        (Some(a), Some(b)) => (a, b),
+-        (None, None) => return Ok(()),
+-        (Some(a), None) => {
+-            let meta = f.metadata()?;
+-            (a, FileTime::from_last_modification_time(&meta))
+-        }
+-        (None, Some(b)) => {
+-            let meta = f.metadata()?;
+-            (FileTime::from_last_access_time(&meta), b)
+-        }
+-    };
+-    set_file_times_redox(f.as_raw_fd() as usize, atime1, mtime1)
+-}
+-
+-fn open_redox(path: &Path, flags: i32) -> Result<Fd> {
+-    match path.to_str() {
+-        Some(string) => Fd::open(string, flags, 0),
+-        None => Err(Error::new(errno::EINVAL)),
+-    }
+-}
+-
+-fn set_file_times_redox(fd: usize, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    use libredox::data::TimeSpec;
+-
+-    fn to_timespec(ft: &FileTime) -> TimeSpec {
+-        TimeSpec {
+-            tv_sec: ft.seconds(),
+-            tv_nsec: ft.nanoseconds() as _,
+-        }
+-    }
+-
+-    let times = [to_timespec(&atime), to_timespec(&mtime)];
+-
+-    call::futimens(fd, &times)?;
+-    Ok(())
++    let file = std::fs::OpenOptions::new()
++        .read(true)
++        .custom_flags(O_NOFOLLOW)
++        .open(p)?;
++    crate::set_file_handle_times(&file, Some(atime), Some(mtime))
+ }
+ 
+ pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
+@@ -111,3 +31,7 @@
+ pub fn from_creation_time(_meta: &fs::Metadata) -> Option<FileTime> {
+     None
+ }
++
++pub fn open(path: &Path) -> io::Result<fs::File> {
++    fs::File::open(path)
++}
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/android.rs /tmp/filetime-zos/src/unix/android.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/android.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/android.rs	2026-08-11 13:04:01.635605846 -0400
+@@ -1,41 +1,9 @@
+ use crate::FileTime;
+ use std::ffi::CString;
+-use std::fs::File;
+ use std::io;
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ 
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), Some(mtime), false)
+-}
+-
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, None, Some(mtime), false)
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), None, false)
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+-
+-    // On Android NDK before version 19, `futimens` is not available.
+-    //
+-    // For better compatibility, we reimplement `futimens` using `utimensat`,
+-    // the same way as bionic libc uses it to implement `futimens`.
+-    let rc = unsafe { libc::utimensat(f.as_raw_fd(), core::ptr::null(), times.as_ptr(), 0) };
+-    if rc == 0 {
+-        Ok(())
+-    } else {
+-        Err(io::Error::last_os_error())
+-    }
+-}
+-
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+     set_times(p, Some(atime), Some(mtime), true)
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/linux.rs /tmp/filetime-zos/src/unix/linux.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/linux.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/linux.rs	2026-08-11 13:04:01.680597147 -0400
+@@ -4,82 +4,12 @@
+ 
+ use crate::FileTime;
+ use std::ffi::CString;
+-use std::fs;
+ use std::io;
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+-use std::ptr;
+ use std::sync::atomic::AtomicBool;
+ use std::sync::atomic::Ordering::SeqCst;
+ 
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), Some(mtime), false)
+-}
+-
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, None, Some(mtime), false)
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), None, false)
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &fs::File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    // Attempt to use the `utimensat` syscall, but if it's not supported by the
+-    // current kernel then fall back to an older syscall.
+-    static INVALID: AtomicBool = AtomicBool::new(false);
+-    if !INVALID.load(SeqCst) {
+-        let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+-
+-        // We normally use a syscall because the `utimensat` function is documented
+-        // as not accepting a file descriptor in the first argument (even though, on
+-        // Linux, the syscall itself can accept a file descriptor there).
+-        #[cfg(not(target_env = "musl"))]
+-        let rc = unsafe {
+-            libc::syscall(
+-                libc::SYS_utimensat,
+-                f.as_raw_fd(),
+-                ptr::null::<libc::c_char>(),
+-                times.as_ptr(),
+-                0,
+-            )
+-        };
+-        // However, on musl, we call the musl libc function instead. This is because
+-        // on newer musl versions starting with musl 1.2, `timespec` is always a 64-bit
+-        // value even on 32-bit targets. As a result, musl internally converts their
+-        // `timespec` values to the correct ABI before invoking the syscall. Since we
+-        // use `timespec` from the libc crate, it matches musl's definition and not
+-        // the Linux kernel's version (for some platforms) so we must use musl's
+-        // `utimensat` function to properly convert the value. musl's `utimensat`
+-        // function allows file descriptors in the path argument so this is fine.
+-        #[cfg(target_env = "musl")]
+-        let rc = unsafe {
+-            libc::utimensat(
+-                f.as_raw_fd(),
+-                ptr::null::<libc::c_char>(),
+-                times.as_ptr(),
+-                0,
+-            )
+-        };
+-
+-        if rc == 0 {
+-            return Ok(());
+-        }
+-        let err = io::Error::last_os_error();
+-        if err.raw_os_error() == Some(libc::ENOSYS) {
+-            INVALID.store(true, SeqCst);
+-        } else {
+-            return Err(err);
+-        }
+-    }
+-
+-    super::utimes::set_file_handle_times(f, atime, mtime)
+-}
+-
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+     set_times(p, Some(atime), Some(mtime), true)
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs /tmp/filetime-zos/src/unix/macos.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/macos.rs	2026-08-11 13:04:01.680597147 -0400
+@@ -1,47 +1,15 @@
+ //! Beginning with macOS 10.13, `utimensat` is supported by the OS, so here, we check if the symbol exists
+ //! and if not, we fallback to `utimes`.
++
+ use crate::FileTime;
+ use libc::{c_char, c_int, timespec};
+ use std::ffi::{CStr, CString};
+-use std::fs::File;
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ use std::sync::atomic::AtomicUsize;
+ use std::sync::atomic::Ordering::SeqCst;
+ use std::{io, mem};
+ 
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), Some(mtime), false)
+-}
+-
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, None, Some(mtime), false)
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), None, false)
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    // Attempt to use the `futimens` syscall, but if it's not supported by the
+-    // current kernel then fall back to an older syscall.
+-    if let Some(func) = futimens() {
+-        let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+-        let rc = unsafe { func(f.as_raw_fd(), times.as_ptr()) };
+-        if rc == 0 {
+-            return Ok(());
+-        } else {
+-            return Err(io::Error::last_os_error());
+-        }
+-    }
+-
+-    super::utimes::set_file_handle_times(f, atime, mtime)
+-}
+-
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+     set_times(p, Some(atime), Some(mtime), true)
+ }
+@@ -82,14 +50,6 @@
+             .map(|sym| mem::transmute(sym))
+     }
+ }
+-
+-fn futimens() -> Option<unsafe extern "C" fn(c_int, *const timespec) -> c_int> {
+-    static ADDR: AtomicUsize = AtomicUsize::new(0);
+-    unsafe {
+-        fetch(&ADDR, CStr::from_bytes_with_nul_unchecked(b"futimens\0"))
+-            .map(|sym| mem::transmute(sym))
+-    }
+-}
+ 
+ fn fetch(cache: &AtomicUsize, name: &CStr) -> Option<usize> {
+     match cache.load(SeqCst) {
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs /tmp/filetime-zos/src/unix/mod.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/mod.rs	2026-08-11 13:04:01.680597147 -0400
+@@ -1,7 +1,9 @@
+ use crate::FileTime;
+-use libc::{time_t, timespec};
++use libc::{time_t, timespec, UTIME_OMIT};
+ use std::fs;
++use std::io;
+ use std::os::unix::prelude::*;
++use std::path::Path;
+ 
+ cfg_if::cfg_if! {
+     if #[cfg(target_os = "linux")] {
+@@ -16,6 +18,7 @@
+         mod macos;
+         pub use self::macos::*;
+     } else if #[cfg(any(target_os = "aix",
++                        target_os = "nto",
+                         target_os = "solaris",
+                         target_os = "illumos",
+                         target_os = "emscripten",
+@@ -33,31 +36,6 @@
+ 
+ #[allow(dead_code)]
+ fn to_timespec(ft: &Option<FileTime>) -> timespec {
+-    cfg_if::cfg_if! {
+-        if #[cfg(any(target_os = "macos",
+-                     target_os = "illumos",
+-                     target_os = "freebsd"))] {
+-            // https://github.com/apple/darwin-xnu/blob/a449c6a3b8014d9406c2ddbdc81795da24aa7443/bsd/sys/stat.h#L541
+-            // https://github.com/illumos/illumos-gate/blob/master/usr/src/boot/sys/sys/stat.h#L312
+-            // https://svnweb.freebsd.org/base/head/sys/sys/stat.h?view=markup#l359
+-            const UTIME_OMIT: i64 = -2;
+-        } else if #[cfg(target_os = "openbsd")] {
+-            // https://github.com/openbsd/src/blob/master/sys/sys/stat.h#L189
+-            const UTIME_OMIT: i64 = -1;
+-        } else if #[cfg(target_os = "haiku")] {
+-            // https://git.haiku-os.org/haiku/tree/headers/posix/sys/stat.h?#n106
+-            const UTIME_OMIT: i64 = 1000000001;
+-        } else if #[cfg(target_os = "aix")] {
+-            // AIX hasn't disclosed system header files yet.
+-            // https://github.com/golang/go/blob/master/src/cmd/vendor/golang.org/x/sys/unix/zerrors_aix_ppc64.go#L1007
+-            const UTIME_OMIT: i64 = -3;
+-        } else {
+-            // http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/stat.h?annotate=1.68.30.1
+-            // https://github.com/emscripten-core/emscripten/blob/master/system/include/libc/sys/stat.h#L71
+-            const UTIME_OMIT: i64 = 1_073_741_822;
+-        }
+-    }
+-
+     let mut ts: timespec = unsafe { std::mem::zeroed() };
+     if let &Some(ft) = ft {
+         ts.tv_sec = ft.seconds() as time_t;
+@@ -85,17 +63,11 @@
+ }
+ 
+ pub fn from_creation_time(meta: &fs::Metadata) -> Option<FileTime> {
+-    #[cfg(target_os = "bitrig")]
+-    {
+-        use std::os::bitrig::fs::MetadataExt;
+-        Some(FileTime {
+-            seconds: meta.st_birthtime(),
+-            nanos: meta.st_birthtime_nsec() as u32,
+-        })
+-    }
++    meta.created().map(|i| i.into()).ok()
++}
+ 
+-    #[cfg(not(target_os = "bitrig"))]
+-    {
+-        meta.created().map(|i| i.into()).ok()
+-    }
++pub fn open(path: &Path) -> io::Result<fs::File> {
++    // Try a read-only open, but if that fails try a write-only open, and if
++    // that fails then give up.
++    fs::File::open(path).or_else(|_| fs::OpenOptions::new().write(true).open(path))
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimensat.rs /tmp/filetime-zos/src/unix/utimensat.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimensat.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/utimensat.rs	2026-08-11 13:04:01.680597147 -0400
+@@ -1,36 +1,9 @@
+ use crate::FileTime;
+ use std::ffi::CString;
+-use std::fs::File;
+ use std::io;
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ 
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), Some(mtime), false)
+-}
+-
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, None, Some(mtime), false)
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), None, false)
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let times = [super::to_timespec(&atime), super::to_timespec(&mtime)];
+-    let rc = unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) };
+-    if rc == 0 {
+-        Ok(())
+-    } else {
+-        Err(io::Error::last_os_error())
+-    }
+-}
+-
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+     set_times(p, Some(atime), Some(mtime), true)
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs /tmp/filetime-zos/src/unix/utimes.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/unix/utimes.rs	2026-08-11 13:04:06.890634010 -0400
+@@ -5,61 +5,6 @@
+ use std::os::unix::prelude::*;
+ use std::path::Path;
+ 
+-#[allow(dead_code)]
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), Some(mtime), false)
+-}
+-
+-#[allow(dead_code)]
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    set_times(p, None, Some(mtime), false)
+-}
+-
+-#[allow(dead_code)]
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    set_times(p, Some(atime), None, false)
+-}
+-
+-#[cfg(not(target_env = "uclibc"))]
+-#[allow(dead_code)]
+-pub fn set_file_handle_times(
+-    f: &fs::File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let (atime, mtime) = match get_times(atime, mtime, || f.metadata())? {
+-        Some(pair) => pair,
+-        None => return Ok(()),
+-    };
+-    let times = [to_timeval(&atime), to_timeval(&mtime)];
+-    let rc = unsafe { libc::futimes(f.as_raw_fd(), times.as_ptr()) };
+-    return if rc == 0 {
+-        Ok(())
+-    } else {
+-        Err(io::Error::last_os_error())
+-    };
+-}
+-
+-#[cfg(target_env = "uclibc")]
+-#[allow(dead_code)]
+-pub fn set_file_handle_times(
+-    f: &fs::File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let (atime, mtime) = match get_times(atime, mtime, || f.metadata())? {
+-        Some(pair) => pair,
+-        None => return Ok(()),
+-    };
+-    let times = [to_timespec(&atime), to_timespec(&mtime)];
+-    let rc = unsafe { libc::futimens(f.as_raw_fd(), times.as_ptr()) };
+-    return if rc == 0 {
+-        Ok(())
+-    } else {
+-        Err(io::Error::last_os_error())
+-    };
+-}
+-
+ fn get_times(
+     atime: Option<FileTime>,
+     mtime: Option<FileTime>,
+@@ -115,6 +60,8 @@
+     libc::timeval {
+         tv_sec: ft.seconds() as libc::time_t,
+         tv_usec: (ft.nanoseconds() / 1000) as libc::suseconds_t,
++        #[cfg(target_os = "zos")]
++        tv_usec_pad: 0,
+     }
+ }
+ 
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/wasm.rs /tmp/filetime-zos/src/wasm.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/wasm.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/wasm.rs	2026-08-11 13:04:01.627014969 -0400
+@@ -1,24 +1,12 @@
+ use crate::FileTime;
+-use std::fs::{self, File};
++use std::fs;
+ use std::io;
+ use std::path::Path;
+ 
+-pub fn set_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Result<()> {
+-    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+-}
+-
+ pub fn set_symlink_file_times(_p: &Path, _atime: FileTime, _mtime: FileTime) -> io::Result<()> {
+     Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+ }
+ 
+-pub fn set_file_mtime(_p: &Path, _mtime: FileTime) -> io::Result<()> {
+-    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+-}
+-
+-pub fn set_file_atime(_p: &Path, _atime: FileTime) -> io::Result<()> {
+-    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
+-}
+-
+ pub fn from_last_modification_time(_meta: &fs::Metadata) -> FileTime {
+     unimplemented!()
+ }
+@@ -31,10 +19,6 @@
+     unimplemented!()
+ }
+ 
+-pub fn set_file_handle_times(
+-    _f: &File,
+-    _atime: Option<FileTime>,
+-    _mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    Err(io::Error::new(io::ErrorKind::Other, "Wasm not implemented"))
++pub fn open(path: &Path) -> io::Result<fs::File> {
++    fs::File::open(path)
+ }
+diff -ruN '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/windows.rs /tmp/filetime-zos/src/windows.rs
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/windows.rs	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/filetime-zos/src/windows.rs	2026-08-11 13:04:01.627014969 -0400
+@@ -1,80 +1,26 @@
+ use crate::FileTime;
+-use std::fs::{self, File, OpenOptions};
++use std::fs::{self, OpenOptions};
+ use std::io;
++use std::os::windows::fs::OpenOptionsExt;
+ use std::os::windows::prelude::*;
+ use std::path::Path;
+-use std::ptr;
+-use windows_sys::Win32::Foundation::{FILETIME, HANDLE};
+-use windows_sys::Win32::Storage::FileSystem::*;
+ 
+-pub fn set_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    let f = OpenOptions::new()
+-        .write(true)
+-        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+-        .open(p)?;
+-    set_file_handle_times(&f, Some(atime), Some(mtime))
+-}
++const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x2000000;
++const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x200000;
+ 
+-pub fn set_file_mtime(p: &Path, mtime: FileTime) -> io::Result<()> {
+-    let f = OpenOptions::new()
++pub fn open(p: &Path) -> io::Result<fs::File> {
++    OpenOptions::new()
+         .write(true)
+         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+-        .open(p)?;
+-    set_file_handle_times(&f, None, Some(mtime))
+-}
+-
+-pub fn set_file_atime(p: &Path, atime: FileTime) -> io::Result<()> {
+-    let f = OpenOptions::new()
+-        .write(true)
+-        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+-        .open(p)?;
+-    set_file_handle_times(&f, Some(atime), None)
+-}
+-
+-pub fn set_file_handle_times(
+-    f: &File,
+-    atime: Option<FileTime>,
+-    mtime: Option<FileTime>,
+-) -> io::Result<()> {
+-    let atime = atime.map(to_filetime);
+-    let mtime = mtime.map(to_filetime);
+-    return unsafe {
+-        let ret = SetFileTime(
+-            f.as_raw_handle() as HANDLE,
+-            ptr::null(),
+-            atime
+-                .as_ref()
+-                .map(|p| p as *const FILETIME)
+-                .unwrap_or(ptr::null()),
+-            mtime
+-                .as_ref()
+-                .map(|p| p as *const FILETIME)
+-                .unwrap_or(ptr::null()),
+-        );
+-        if ret != 0 {
+-            Ok(())
+-        } else {
+-            Err(io::Error::last_os_error())
+-        }
+-    };
+-
+-    fn to_filetime(ft: FileTime) -> FILETIME {
+-        let intervals = ft.seconds() * (1_000_000_000 / 100) + ((ft.nanoseconds() as i64) / 100);
+-        FILETIME {
+-            dwLowDateTime: intervals as u32,
+-            dwHighDateTime: (intervals >> 32) as u32,
+-        }
+-    }
++        .open(p)
+ }
+ 
+ pub fn set_symlink_file_times(p: &Path, atime: FileTime, mtime: FileTime) -> io::Result<()> {
+-    use std::os::windows::fs::OpenOptionsExt;
+-
+     let f = OpenOptions::new()
+         .write(true)
+         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+         .open(p)?;
+-    set_file_handle_times(&f, Some(atime), Some(mtime))
++    crate::set_file_handle_times(&f, Some(atime), Some(mtime))
+ }
+ 
+ pub fn from_last_modification_time(meta: &fs::Metadata) -> FileTime {
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/Cargo.toml	1969-12-31 19:00:01.000000000 -0500
++++ /tmp/filetime-zos/Cargo.toml	2026-08-11 13:04:01.690597217 -0400
+@@ -11,10 +11,12 @@
+ 
+ [package]
+ edition = "2018"
++rust-version = "1.75.0"
+ name = "filetime"
+-version = "0.2.25"
++version = "0.2.29"
+ authors = ["Alex Crichton <alex@alexcrichton.com>"]
+ build = false
++autolib = false
+ autobins = false
+ autoexamples = false
+ autotests = false
+@@ -42,15 +44,10 @@
+ [dev-dependencies.tempfile]
+ version = "3"
+ 
+-[target.'cfg(target_os = "redox")'.dependencies.libredox]
+-version = "0.1.0"
+-
+ [target."cfg(unix)".dependencies.libc]
+ version = "0.2.27"
+ 
+-[target."cfg(windows)".dependencies.windows-sys]
+-version = "0.59.0"
+-features = [
+-    "Win32_Foundation",
+-    "Win32_Storage_FileSystem",
+-]
++[lints.rust.unexpected_cfgs]
++level = "warn"
++priority = 0
++check-cfg = ["cfg(emulate_second_only_system)"]
