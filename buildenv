@@ -65,7 +65,7 @@ zopen_get_version() {
 # All patch sources: https://github.com/zopencommunity/uvport/tree/master/patches
 zopen_init() {
   curl -L -o uv \
-    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}-tls/uv-0.8.13-tls-zos
+    https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_1/uv-0.8.13-zos
   chtag -b ./uv
   chmod +x ./uv
 }
