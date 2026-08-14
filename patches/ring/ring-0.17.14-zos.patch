@@ -1,7 +1,15 @@
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/build.rs /tmp/ring-zos/build.rs
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/build.rs /tmp/ring-zos/build.rs
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/build.rs	2006-07-23 21:21:28.000000000 -0400
-+++ /tmp/ring-zos/build.rs	2026-08-11 16:18:10.771469846 -0400
-@@ -272,6 +272,8 @@
++++ /tmp/ring-zos/build.rs	2026-08-14 15:11:11.412227932 -0400
+@@ -56,6 +56,7 @@
+     (&[], "crypto/fipsmodule/aes/aes_nohw.c"),
+     (&[], "crypto/fipsmodule/bn/montgomery.c"),
+     (&[], "crypto/fipsmodule/bn/montgomery_inv.c"),
++    (&[], "crypto/fipsmodule/bn/bn_mul_mont_zos.c"),
+     (&[], "crypto/fipsmodule/ec/ecp_nistz.c"),
+     (&[], "crypto/fipsmodule/ec/gfp_p256.c"),
+     (&[], "crypto/fipsmodule/ec/gfp_p384.c"),
+@@ -272,6 +273,8 @@
          env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should always be set"),
      );
  
@@ -10,7 +18,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
      // Keep in sync with `core_name_and_version!` in prefixed.rs.
      let core_name_and_version = [
          &env::var("CARGO_PKG_NAME").unwrap(),
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/cpu_intel.c /tmp/ring-zos/crypto/cpu_intel.c
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/cpu_intel.c /tmp/ring-zos/crypto/cpu_intel.c
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/cpu_intel.c	2006-07-23 21:21:28.000000000 -0400
 +++ /tmp/ring-zos/crypto/cpu_intel.c	2026-08-11 16:25:04.686186087 -0400
 @@ -19,8 +19,12 @@
@@ -26,7 +34,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #pragma warning(pop)
  #endif
  
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519.c /tmp/ring-zos/crypto/curve25519/curve25519.c
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519.c /tmp/ring-zos/crypto/curve25519/curve25519.c
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519.c	2006-07-23 21:21:28.000000000 -0400
 +++ /tmp/ring-zos/crypto/curve25519/curve25519.c	2026-08-11 16:24:52.410279556 -0400
 @@ -48,7 +48,7 @@
@@ -38,9 +46,392 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #include "../../third_party/fiat/curve25519_64_msvc.h"
  #else
  #include "../../third_party/fiat/curve25519_32.h"
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/internal.h /tmp/ring-zos/crypto/fipsmodule/bn/internal.h
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519_tables.h /tmp/ring-zos/crypto/curve25519/curve25519_tables.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/curve25519_tables.h	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/curve25519/curve25519_tables.h	2026-08-14 15:36:55.893519072 -0400
+@@ -17,7 +17,7 @@
+ 
+ 
+ static const fe d = {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+     929955233495203, 466365720129213, 1662059464998953, 2033849074728123,
+     1442794654840575
+ #else
+@@ -27,7 +27,7 @@
+ }};
+ 
+ static const fe sqrtm1 = {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+     1718705420411056, 234908883556509, 2233514472574048, 2117202627021982,
+     765476049583133
+ #else
+@@ -37,7 +37,7 @@
+ }};
+ 
+ static const fe d2 = {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+     1859910466990425, 932731440258426, 1072319116312658, 1815898335770999,
+     633789495995903
+ #else
+@@ -3031,7 +3031,7 @@
+ static const ge_precomp Bi[8] = {
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1288382639258501, 245678601348599, 269427782077623,
+             1462984067271730, 137412439391563
+ #else
+@@ -3040,7 +3040,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             62697248952638, 204681361388450, 631292143396476, 338455783676468,
+             1213667448819585
+ #else
+@@ -3049,7 +3049,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             301289933810280, 1259582250014073, 1422107436869536,
+             796239922652654, 1953934009299142
+ #else
+@@ -3060,7 +3060,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1601611775252272, 1720807796594148, 1132070835939856,
+             1260455018889551, 2147779492816911
+ #else
+@@ -3069,7 +3069,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             316559037616741, 2177824224946892, 1459442586438991,
+             1461528397712656, 751590696113597
+ #else
+@@ -3078,7 +3078,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1850748884277385, 1200145853858453, 1068094770532492,
+             672251375690438, 1586055907191707
+ #else
+@@ -3089,7 +3089,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             769950342298419, 132954430919746, 844085933195555, 974092374476333,
+             726076285546016
+ #else
+@@ -3098,7 +3098,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             425251763115706, 608463272472562, 442562545713235, 837766094556764,
+             374555092627893
+ #else
+@@ -3107,7 +3107,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1086255230780037, 274979815921559, 1960002765731872,
+             929474102396301, 1190409889297339
+ #else
+@@ -3118,7 +3118,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             665000864555967, 2065379846933859, 370231110385876, 350988370788628,
+             1233371373142985
+ #else
+@@ -3127,7 +3127,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             2019367628972465, 676711900706637, 110710997811333,
+             1108646842542025, 517791959672113
+ #else
+@@ -3136,7 +3136,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             965130719900578, 247011430587952, 526356006571389, 91986625355052,
+             2157223321444601
+ #else
+@@ -3147,7 +3147,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1802695059465007, 1664899123557221, 593559490740857,
+             2160434469266659, 927570450755031
+ #else
+@@ -3156,7 +3156,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1725674970513508, 1933645953859181, 1542344539275782,
+             1767788773573747, 1297447965928905
+ #else
+@@ -3165,7 +3165,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1381809363726107, 1430341051343062, 2061843536018959,
+             1551778050872521, 2036394857967624
+ #else
+@@ -3176,7 +3176,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1970894096313054, 528066325833207, 1619374932191227,
+             2207306624415883, 1169170329061080
+ #else
+@@ -3185,7 +3185,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             2070390218572616, 1458919061857835, 624171843017421,
+             1055332792707765, 433987520732508
+ #else
+@@ -3194,7 +3194,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             893653801273833, 1168026499324677, 1242553501121234,
+             1306366254304474, 1086752658510815
+ #else
+@@ -3205,7 +3205,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             213454002618221, 939771523987438, 1159882208056014, 317388369627517,
+             621213314200687
+ #else
+@@ -3214,7 +3214,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1971678598905747, 338026507889165, 762398079972271, 655096486107477,
+             42299032696322
+ #else
+@@ -3223,7 +3223,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             177130678690680, 1754759263300204, 1864311296286618,
+             1180675631479880, 1292726903152791
+ #else
+@@ -3234,7 +3234,7 @@
+     },
+     {
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1913163449625248, 460779200291993, 2193883288642314,
+             1008900146920800, 1721983679009502
+ #else
+@@ -3243,7 +3243,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             1070401523076875, 1272492007800961, 1910153608563310,
+             2075579521696771, 1191169788841221
+ #else
+@@ -3252,7 +3252,7 @@
+ #endif
+         }},
+         {{
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+             692896803108118, 500174642072499, 2068223309439677,
+             1162190621851337, 1426986007309901
+ #else
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/internal.h /tmp/ring-zos/crypto/curve25519/internal.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/curve25519/internal.h	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/curve25519/internal.h	2026-08-14 15:34:03.681962523 -0400
+@@ -49,7 +49,7 @@
+ void x25519_ge_scalarmult_base_adx(uint8_t h[4][32], const uint8_t a[32]);
+ #endif
+ 
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+ // An element t,
+ // entries t[0]...t[4], represents the integer t[0]+2^51 t[1]+2^102 t[2]+2^153
+ // t[3]+2^204 t[4].
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/bn_mul_mont_zos.c /tmp/ring-zos/crypto/fipsmodule/bn/bn_mul_mont_zos.c
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/bn_mul_mont_zos.c	1969-12-31 19:00:00.000000000 -0500
++++ /tmp/ring-zos/crypto/fipsmodule/bn/bn_mul_mont_zos.c	2026-08-14 15:48:26.008091986 -0400
+@@ -0,0 +1,121 @@
++/* bn_mul_mont_zos.c - Software Montgomery multiplication for platforms
++ * without assembly support (e.g. z/OS big-endian s390x, other non-x86/arm).
++ *
++ * On these platforms, the #else branch of bn_mul_mont_small calls bn_mul_mont,
++ * which has no C definition otherwise.
++ *
++ * Implements: rp = ap * bp * R^{-1} mod np
++ * Algorithm: Separated Operand Scanning (SOS), Koc et al. 1996.
++ *
++ * Supports arbitrary num up to BN_MONTGOMERY_MAX_WORDS (1024 words).
++ */
++
++#include "internal.h"
++#include <stdlib.h>
++
++#if defined(OPENSSL_SMALL)
++
++void bn_mul_mont(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
++                 const BN_ULONG *np, const BN_ULONG *n0p, size_t num) {
++  /* Allocate temporary array t[2*num+1] on the stack for small num,
++   * heap for large num (RSA-2048 uses num=32, RSA-4096 uses num=64). */
++#define BN_MONT_MAX_STACK 128  /* words; up to RSA-4096 comfortably on stack */
++  BN_ULONG t_stack[BN_MONT_MAX_STACK * 2 + 1];
++  BN_ULONG *t;
++  int heap_alloc = 0;
++
++  if (num == 0) return;
++
++  size_t t_size = 2 * num + 1;
++  if (t_size <= BN_MONT_MAX_STACK * 2 + 1) {
++    t = t_stack;
++  } else {
++    t = (BN_ULONG *)malloc(t_size * sizeof(BN_ULONG));
++    if (!t) return;
++    heap_alloc = 1;
++  }
++
++  BN_ULONG n0 = n0p[0];
++  size_t i;
++
++  /* Zero t */
++  for (i = 0; i < t_size; i++) t[i] = 0;
++
++  /* ---- Phase 1: t[0..2*num-1] = ap * bp ---- */
++  for (i = 0; i < num; i++) {
++    BN_ULONG ai = ap[i];
++    BN_ULONG carry = 0;
++    size_t j;
++    for (j = 0; j < num; j++) {
++      BN_ULONG lo, hi;
++      bn_umult_lohi(&lo, &hi, ai, bp[j]);
++
++      BN_ULONG sum = t[i + j] + lo;
++      BN_ULONG c1 = (sum < t[i + j]) ? 1 : 0;
++      sum += carry;
++      BN_ULONG c2 = (sum < carry) ? 1 : 0;
++      t[i + j] = sum;
++      carry = hi + c1 + c2;
++    }
++    /* Carry into t[i+num]; safe since t has 2*num+1 words */
++    t[i + num] += carry;
++  }
++
++  /* ---- Phase 2: Montgomery reduction ---- */
++  for (i = 0; i < num; i++) {
++    BN_ULONG m = t[i] * n0;   /* reduction factor for this step */
++    BN_ULONG carry = 0;
++    size_t j;
++    for (j = 0; j < num; j++) {
++      BN_ULONG lo, hi;
++      bn_umult_lohi(&lo, &hi, m, np[j]);
++
++      BN_ULONG sum = t[i + j] + lo;
++      BN_ULONG c1 = (sum < t[i + j]) ? 1 : 0;
++      sum += carry;
++      BN_ULONG c2 = (sum < carry) ? 1 : 0;
++      t[i + j] = sum;
++      carry = hi + c1 + c2;
++    }
++    /* Propagate carry into upper words */
++    size_t k = i + num;
++    while (carry) {
++      BN_ULONG s = t[k] + carry;
++      carry = (s < t[k]) ? 1 : 0;
++      t[k] = s;
++      k++;
++    }
++    /* t[i] is now 0 mod 2^BITS by construction */
++    t[i] = 0;
++  }
++
++  /* ---- Phase 3: rp = t[num..2*num-1], subtract np if needed ---- */
++  BN_ULONG *res = &t[num];
++  BN_ULONG overflow = t[2 * num];
++
++  /* Attempt conditional subtraction: sub[] = res[] - np */
++  BN_ULONG *sub = t;  /* reuse the now-zeroed low half of t */
++  BN_ULONG borrow = 0;
++  for (i = 0; i < num; i++) {
++    BN_ULONG r_i = res[i];
++    BN_ULONG s = r_i - np[i];
++    BN_ULONG b1 = (s > r_i) ? 1 : 0;
++    s -= borrow;
++    BN_ULONG b2 = (borrow > 0 && s == (BN_ULONG)(-1)) ? 1 : 0;
++    borrow = b1 | b2;
++    sub[i] = s;
++  }
++
++  /* Use sub[] if overflow > 0 (means res >= 2*np, definitely reduce)
++   * OR if borrow == 0 (subtraction didn't underflow, res >= np). */
++  BN_ULONG use_sub = (overflow > 0 || borrow == 0) ? 1 : 0;
++  for (i = 0; i < num; i++) {
++    rp[i] = use_sub ? sub[i] : res[i];
++  }
++
++  if (heap_alloc) {
++    free(t);
++  }
++}
++
++#endif  /* OPENSSL_SMALL */
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/internal.h /tmp/ring-zos/crypto/fipsmodule/bn/internal.h
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/bn/internal.h	2006-07-23 21:21:28.000000000 -0400
-+++ /tmp/ring-zos/crypto/fipsmodule/bn/internal.h	2026-08-11 16:25:04.685989874 -0400
++++ /tmp/ring-zos/crypto/fipsmodule/bn/internal.h	2026-08-14 15:33:12.131596887 -0400
 @@ -20,7 +20,9 @@
  
  #if defined(OPENSSL_X86_64) && defined(_MSC_VER) && !defined(__clang__)
@@ -56,7 +447,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #if defined(OPENSSL_X86_64) && defined(_MSC_VER) && !defined(__clang__)
    *low_out = _umul128(a, b, high_out);
 +#elif defined(__MVS__)
-+  /* z/OS: no __int128 support; use 32-bit half-word decomposition */
++  /* z/OS XL C: no __int128 support; use 32-bit half-word decomposition */
 +  BN_ULONG a0 = (uint32_t)a, a1 = a >> 32;
 +  BN_ULONG b0 = (uint32_t)b, b1 = b >> 32;
 +  BN_ULONG p0 = a0 * b0, p1 = a0 * b1, p2 = a1 * b0, p3 = a1 * b1;
@@ -66,9 +457,9 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #else
    BN_ULLONG result = (BN_ULLONG)a * b;
    *low_out = (BN_ULONG)result;
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256.c /tmp/ring-zos/crypto/fipsmodule/ec/p256.c
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256.c /tmp/ring-zos/crypto/fipsmodule/ec/p256.c
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256.c	2006-07-23 21:21:28.000000000 -0400
-+++ /tmp/ring-zos/crypto/fipsmodule/ec/p256.c	2026-08-11 16:24:16.576613220 -0400
++++ /tmp/ring-zos/crypto/fipsmodule/ec/p256.c	2026-08-14 15:33:55.901907340 -0400
 @@ -51,7 +51,7 @@
  #pragma GCC diagnostic ignored "-Wpedantic"
  #endif
@@ -83,20 +474,75 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  // utility functions, handwritten
  
 -#if defined(OPENSSL_64_BIT)
-+#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
++#if defined(OPENSSL_64_BIT) && (defined(BORINGSSL_HAS_UINT128) || !defined(__MVS__))
  #define FIAT_P256_NLIMBS 4
  typedef uint64_t fiat_p256_limb_t;
  typedef uint64_t fiat_p256_felem[FIAT_P256_NLIMBS];
  static const fiat_p256_felem fiat_p256_one = {0x1, 0xffffffff00000000,
                                                0xffffffffffffffff, 0xfffffffe};
 -#else  // 64BIT; else 32BIT
-+#else  // 64BIT MSVC; z/OS; or 32BIT - use 32-bit limbs
++#else  // 32BIT - use 32-bit limbs
  #define FIAT_P256_NLIMBS 8
  typedef uint32_t fiat_p256_limb_t;
  typedef uint32_t fiat_p256_felem[FIAT_P256_NLIMBS];
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/internal.h /tmp/ring-zos/crypto/internal.h
+@@ -98,16 +98,37 @@
+ 
+ static void fiat_p256_from_words(fiat_p256_felem out,
+                                  const Limb in[32 / sizeof(BN_ULONG)]) {
+-  // Typically, |BN_ULONG| and |fiat_p256_limb_t| will be the same type, but on
+-  // 64-bit platforms without |uint128_t|, they are different. However, on
+-  // little-endian systems, |uint64_t[4]| and |uint32_t[8]| have the same
+-  // layout.
++  // On 64-bit platforms using the 64-bit fiat implementation, BN_ULONG and
++  // fiat_p256_limb_t are both uint64_t, so memcpy is correct.
++  // On z/OS (64-bit big-endian, 32-bit fiat), fiat_p256_limb_t is uint32_t[8]
++  // while Limb is uint64_t[4]. Fiat uses little-endian limb ordering:
++  //   z[0] = bits 0-31 (LSW), z[1] = bits 32-63, ...
++  // So z[2*i] = low32(in[i]), z[2*i+1] = high32(in[i]).
++  // Note: simple memcpy is WRONG on big-endian because it reverses the
++  // 32-bit halves within each 64-bit word.
++#if defined(__MVS__) && defined(OPENSSL_64_BIT)
++  const uint64_t *in64 = (const uint64_t *)in;
++  uint32_t *out32 = (uint32_t *)out;
++  for (size_t i = 0; i < 4; i++) {
++    out32[2 * i]     = (uint32_t)(in64[i] & 0xffffffff);  /* low32  */
++    out32[2 * i + 1] = (uint32_t)(in64[i] >> 32);          /* high32 */
++  }
++#else
+   OPENSSL_memcpy(out, in, 32);
++#endif
+ }
+ 
+ static void fiat_p256_to_words(Limb out[32 / sizeof(BN_ULONG)], const fiat_p256_felem in) {
+-  // See |fiat_p256_from_words|.
++  // Reverse of fiat_p256_from_words.
++#if defined(__MVS__) && defined(OPENSSL_64_BIT)
++  const uint32_t *in32 = (const uint32_t *)in;
++  uint64_t *out64 = (uint64_t *)out;
++  for (size_t i = 0; i < 4; i++) {
++    out64[i] = ((uint64_t)in32[2 * i + 1] << 32) | (uint64_t)in32[2 * i];
++  }
++#else
+   OPENSSL_memcpy(out, in, 32);
++#endif
+ }
+ 
+ 
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256_table.h /tmp/ring-zos/crypto/fipsmodule/ec/p256_table.h
+--- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/fipsmodule/ec/p256_table.h	2006-07-23 21:21:28.000000000 -0400
++++ /tmp/ring-zos/crypto/fipsmodule/ec/p256_table.h	2026-08-14 15:35:40.182646978 -0400
+@@ -50,7 +50,7 @@
+ // Tables for other points have table[i] = iG for i in 0 .. 16.
+ 
+ // fiat_p256_g_pre_comp is the table of precomputed base points
+-#if defined(OPENSSL_64_BIT)
++#if defined(OPENSSL_64_BIT) && !defined(__MVS__)
+ static const fiat_p256_felem fiat_p256_g_pre_comp[2][15][2] = {
+     {{{0x79e730d418a9143c, 0x75ba95fc5fedb601, 0x79fb732b77622510,
+        0x18905f76a53755c6},
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/internal.h /tmp/ring-zos/crypto/internal.h
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/internal.h	2006-07-23 21:21:28.000000000 -0400
-+++ /tmp/ring-zos/crypto/internal.h	2026-08-11 16:19:31.712032473 -0400
++++ /tmp/ring-zos/crypto/internal.h	2026-08-14 15:32:51.741452265 -0400
 @@ -58,7 +58,11 @@
  // 'unsigned char' are allowed to alias according to ISO C.
  typedef unsigned char aliasing_uint8_t;
@@ -110,7 +556,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #define BORINGSSL_HAS_UINT128
  typedef __int128_t int128_t;
  typedef __uint128_t uint128_t;
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/limbs/limbs.inl /tmp/ring-zos/crypto/limbs/limbs.inl
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/limbs/limbs.inl /tmp/ring-zos/crypto/limbs/limbs.inl
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/crypto/limbs/limbs.inl	2006-07-23 21:21:28.000000000 -0400
 +++ /tmp/ring-zos/crypto/limbs/limbs.inl	2026-08-11 16:25:04.685707232 -0400
 @@ -17,7 +17,9 @@
@@ -181,7 +627,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
  #else
    DoubleLimb x = (DoubleLimb)a - b;
    *r = (Limb)x;
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/include/ring-core/zos_uint128.h /tmp/ring-zos/include/ring-core/zos_uint128.h
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/include/ring-core/zos_uint128.h /tmp/ring-zos/include/ring-core/zos_uint128.h
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/include/ring-core/zos_uint128.h	1969-12-31 19:00:00.000000000 -0500
 +++ /tmp/ring-zos/include/ring-core/zos_uint128.h	2026-08-11 16:22:00.583452507 -0400
 @@ -0,0 +1,30 @@
@@ -215,7 +661,7 @@ diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodo
 +}
 +
 +#endif /* __MVS__ */
-diff -ruN '--exclude=*.orig' '--exclude=Cargo.lock' '--exclude=.git' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/src/rand.rs /tmp/ring-zos/src/rand.rs
+diff -rN '--unified=3' '--exclude=*.orig' /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/src/rand.rs /tmp/ring-zos/src/rand.rs
 --- /home/itodorov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ring-0.17.14/src/rand.rs	2006-07-23 21:21:28.000000000 -0400
 +++ /tmp/ring-zos/src/rand.rs	2026-08-11 13:28:01.560104307 -0400
 @@ -125,6 +125,7 @@
