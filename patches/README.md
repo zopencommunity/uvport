@@ -199,3 +199,66 @@ No crates.io diff available; the fork adds a complete `src/unix/zos/` module.
 
 **Why**: `rust-version = "1.88"`.  
 **Changes**: remove `rust-version` from `Cargo.toml`.
+
+---
+
+## Additional patches (zos profile link fixes)
+
+### errno — `patches/errno/`
+
+### `errno-0.3.14-zos.patch`
+
+**Why**: `errno` crate declares `fn errno_location()` as `extern "C"` with no
+`link_name` attribute for z/OS. The z/OS GOFF binder then looks for a symbol
+literally named `errno_location` which doesn't exist in any z/OS library.  
+**Changes**: add `target_os = "zos"` to the `link_name = "__errno"` cfg_attr block in
+`src/unix.rs`, so z/OS links to `__errno` (which exists in z/OS libc).
+
+---
+
+### rustix (additions) — `patches/rustix/`
+
+Added to `rustix-1.1.4-zos.patch`:
+- `src/backend/libc/io/syscalls.rs`: gate `preadv`/`pwritev` out for z/OS (not in libc)
+- `src/backend/libc/fs/syscalls.rs`: gate `futimens`/`fadvise` out for z/OS
+- `src/backend/libc/mm/syscalls.rs`: gate `mlock`/`munlock` out for z/OS
+- `src/mm/mmap.rs`: gate public `mlock`/`munlock` API for z/OS
+- `src/io/read_write.rs`: gate public `preadv`/`pwritev` API for z/OS
+- `src/fs/fadvise.rs` + `src/fs/mod.rs`: gate public `fadvise` API + re-export for z/OS
+
+Note: even though these functions are gated out in Rust, the z/OS GOFF binder
+still creates External Reference records for `mlock`/`munlock` from `libc-zos`
+declarations. A stub archive `libzos_mlock_stubs.a` (compiled with ibm-clang on LoP
+using the cross-compiler wrapper) provides ENOSYS-returning stubs to satisfy the binder.
+
+---
+
+### sys-info (additions) — `patches/sys-info/`
+
+Updated `sys-info-0.9.1-zos.patch`:
+- `lib.rs`: gate `get_cpu_num` out for z/OS (both the `extern "C"` declaration and
+  the Rust call site); add a z/OS branch returning `UnsupportedSystem` instead.
+
+---
+
+## zos build profile
+
+Added `[profile.zos]` to `Cargo.toml`:
+```toml
+[profile.zos]
+inherits = "release"
+lto = false        # no LTO: binder handles dead-code elimination
+opt-level = "z"    # smallest code → fewer GOFF records → binder stays within limits
+debug = 0          # no debug info → rlibs 3-10× smaller than debug profile
+strip = true
+panic = "abort"
+codegen-units = 1
+```
+
+Build with:
+```bash
+cargo build --profile zos --target s390x-ibm-zos -p uv --ignore-rust-version
+```
+
+`--ignore-rust-version` is required because `zbus 5.x` (in the dep tree)
+declares `rust-version = "1.87"` but our toolchain is rustc 1.86.0-nightly.

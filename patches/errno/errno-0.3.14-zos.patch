@@ -1,0 +1,10 @@
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -79,6 +79,7 @@
+             target_os = "espidf",
+             target_os = "vxworks",
+             target_os = "cygwin",
++            target_os = "zos",
+             target_env = "newlib"
+         ),
+         link_name = "__errno"
