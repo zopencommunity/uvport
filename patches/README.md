@@ -61,8 +61,17 @@ No crates.io diff available; the fork adds a complete `src/unix/zos/` module.
 
 ### ring — `patches/ring/ring-0.17.14-zos.patch`
 
-**Why**: ring's C sources use Linux/MSVC-specific headers and `__int128_t`.  
-**Changes**: add z/OS guards in `build.rs`; fix `__int128_t`/`__uint128_t` typedefs in `crypto/internal.h`; add `s390x-ibm-zos` to GOFF arch detection.
+**Why**: ring's C crypto sources have multiple big-endian z/OS incompatibilities affecting TLS.
+
+**Changes** (6 root causes fixed):
+- `bn_mul_mont_zos.c` (new): SOS Montgomery multiplication for z/OS — required for RSA-2048/4096; ring only has assembly `bn_mul_mont` for x86_64/aarch64
+- `bn_umult_lohi`: software 64×64→128-bit multiply — IBM XL C lacks `__int128`
+- `p256_table.h`: fix 64-bit table selected with 32-bit fiat P-256 implementation (`!defined(__MVS__)`)
+- `p256.c`: big-endian limb conversion in `fiat_p256_from/to_words` — `memcpy` reverses 32-bit halves on big-endian
+- `curve25519/internal.h`: fix `fe` type mismatch (`uint64_t[5]` vs fiat's `uint32_t[10]`)
+- `curve25519_tables.h`: 27 guards changed to `!defined(__MVS__)` for 32-bit table constants
+
+**Result**: Full TLS 1.3 working on z/OS (P-256/X25519 ECDH, RSA cert verification, HKDF, AEAD). `uv add <pkg>` downloads from PyPI over HTTPS.
 
 ### zeroize — `patches/zeroize/zeroize-1.8.1-zos.patch`
 

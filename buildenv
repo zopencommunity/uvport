@@ -38,13 +38,15 @@ zopen_get_version() {
 # targeting s390x-ibm-zos. This is the last 0.8.x release with rust-version = "1.86",
 # matching the IBM z/OS Rust toolchain.
 #
-# Working functionality (as of v0.8.13 release):
-#   uv --version  OK
-#   uv init       OK
-#   uv run        OK
-#   uv add <whl>  OK (local .whl files)
-#   uv python list OK
-#   PyPI TLS      WARN (z/OS TLS stack limitation)
+# Working functionality (as of v0.8.13-tls release):
+#   uv --version         OK
+#   uv init              OK
+#   uv run               OK
+#   uv add <whl>         OK (local .whl files)
+#   uv add <pkg>         OK (from PyPI over TLS/HTTPS)
+#   uv python list       OK
+#   uv pip install       OK (from PyPI over TLS/HTTPS)
+#   Full TLS 1.3         OK (rustls + ring, fixed for z/OS big-endian)
 #
 # Key patches applied during cross-compilation:
 #   - libc: z/OS dirent/socket/termios symbols
@@ -54,21 +56,18 @@ zopen_get_version() {
 #   - rustix 1.1.4: ioctl _Opcode, errno codes, fs syscalls for z/OS
 #   - getrandom 0.2/0.4: use_file (/dev/urandom) backend for z/OS
 #   - tokio 1.53.1: ucred get_peer_cred no-op for z/OS
+#   - ring 0.17.14: bn_mul_mont, P-256/Curve25519 big-endian fixes (TLS)
 #   - uv platform tags: Os::Zos + os390_ tag format
 #   - libzos_fdopendir.a: ASCII-compatible fdopendir stub (injected at link)
 #
 # Cross-compilation infrastructure:
 #   https://github.ibm.com/compiler/rust-scripts  branch: itodorov/zos-cross-compile-setup
-# All patch sources: https://github.com/zopencommunity/uvport/tree/main/patches
+# All patch sources: https://github.com/zopencommunity/uvport/tree/master/patches
 zopen_init() {
   curl -L -o uv \
-    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv
+    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}-tls/uv-0.8.13-tls-zos
   chtag -b ./uv
   chmod +x ./uv
-  curl -L -o uvx \
-    https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx
-  chtag -b ./uvx
-  chmod +x ./uvx
 }
 
 zopen_custom_check() {
@@ -85,9 +84,8 @@ zopen_custom_install() {
   cp ./uv "${ZOPEN_INSTALL_DIR}/bin/uv"
   chtag -b "${ZOPEN_INSTALL_DIR}/bin/uv"
   chmod +x "${ZOPEN_INSTALL_DIR}/bin/uv"
-  cp ./uvx "${ZOPEN_INSTALL_DIR}/bin/uvx"
-  chtag -b "${ZOPEN_INSTALL_DIR}/bin/uvx"
-  chmod +x "${ZOPEN_INSTALL_DIR}/bin/uvx"
+  # uvx is a symlink to uv in upstream; create it here too
+  ln -sf uv "${ZOPEN_INSTALL_DIR}/bin/uvx"
 }
 
 zopen_append_to_validate_install() {
