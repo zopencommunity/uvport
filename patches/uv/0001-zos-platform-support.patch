@@ -1,0 +1,157 @@
+diff --git a/crates/uv-platform-tags/src/platform.rs b/crates/uv-platform-tags/src/platform.rs
+index 406facd..0a10328 100644
+--- a/crates/uv-platform-tags/src/platform.rs
++++ b/crates/uv-platform-tags/src/platform.rs
+@@ -52,6 +52,7 @@ pub enum Os {
+     Illumos { release: String, arch: String },
+     Haiku { release: String },
+     Android { api_level: u16 },
++    Zos { release: String },
+ }
+ 
+ impl fmt::Display for Os {
+@@ -69,6 +70,7 @@ impl fmt::Display for Os {
+             Self::Haiku { .. } => write!(f, "haiku"),
+             Self::Android { .. } => write!(f, "android"),
+             Self::Pyodide { .. } => write!(f, "pyodide"),
++            Self::Zos { .. } => write!(f, "zos"),
+         }
+     }
+ }
+diff --git a/crates/uv-platform-tags/src/platform_tag.rs b/crates/uv-platform-tags/src/platform_tag.rs
+index b970a24..129dc0a 100644
+--- a/crates/uv-platform-tags/src/platform_tag.rs
++++ b/crates/uv-platform-tags/src/platform_tag.rs
+@@ -73,6 +73,8 @@ pub enum PlatformTag {
+     Solaris { release_arch: SmallString },
+     /// Ex) `pyodide_2024_0_wasm32`
+     Pyodide { major: u16, minor: u16 },
++    /// Ex) `os390_29_00_8561`
++    Zos { release_arch: SmallString },
+ }
+ 
+ impl PlatformTag {
+@@ -100,6 +102,7 @@ impl PlatformTag {
+             Self::Illumos { .. } => Some("Illumos"),
+             Self::Solaris { .. } => Some("Solaris"),
+             Self::Pyodide { .. } => Some("Pyodide"),
++            Self::Zos { .. } => Some("z/OS"),
+         }
+     }
+ }
+@@ -276,6 +279,7 @@ impl std::fmt::Display for PlatformTag {
+             Self::Illumos { release_arch } => write!(f, "illumos_{release_arch}"),
+             Self::Solaris { release_arch } => write!(f, "solaris_{release_arch}_64bit"),
+             Self::Pyodide { major, minor } => write!(f, "pyodide_{major}_{minor}_wasm32"),
++            Self::Zos { release_arch } => write!(f, "os390_{release_arch}"),
+         }
+     }
+ }
+@@ -659,6 +663,19 @@ impl FromStr for PlatformTag {
+             return Ok(Self::Pyodide { major, minor });
+         }
+ 
++        if let Some(rest) = s.strip_prefix("os390_") {
++            // Ex) os390_29_00_8561
++            if rest.is_empty() {
++                return Err(ParsePlatformTagError::InvalidFormat {
++                    platform: "zos",
++                    tag: s.to_string(),
++                });
++            }
++            return Ok(Self::Zos {
++                release_arch: SmallString::from(rest),
++            });
++        }
++
+         Err(ParsePlatformTagError::UnknownFormat(s.to_string()))
+     }
+ }
+diff --git a/crates/uv-platform-tags/src/tags.rs b/crates/uv-platform-tags/src/tags.rs
+index b321d1d..bf0c5d7 100644
+--- a/crates/uv-platform-tags/src/tags.rs
++++ b/crates/uv-platform-tags/src/tags.rs
+@@ -623,6 +623,14 @@ fn compatible_tags(platform: &Platform) -> Result<Vec<PlatformTag>, PlatformErro
+                 minor: *minor,
+             }]
+         }
++        (Os::Zos { release }, _arch) => {
++            // z/OS platform tag format: "os390_<release>" (no arch suffix)
++            // e.g. release "29.00-8561" -> "os390_29_00_8561"
++            let release = release.replace(['.', '-'], "_");
++            vec![PlatformTag::Zos {
++                release_arch: SmallString::from(release),
++            }]
++        }
+         _ => {
+             return Err(PlatformError::OsVersionDetectionError(format!(
+                 "Unsupported operating system and architecture combination: {os} {arch}"
+diff --git a/crates/uv-platform/src/os.rs b/crates/uv-platform/src/os.rs
+index 95372be..00aee3d 100644
+--- a/crates/uv-platform/src/os.rs
++++ b/crates/uv-platform/src/os.rs
+@@ -107,6 +107,9 @@ impl From<&uv_platform_tags::Os> for Os {
+             uv_platform_tags::Os::Pyodide { .. } => {
+                 Self::new(target_lexicon::OperatingSystem::Emscripten)
+             }
++            uv_platform_tags::Os::Zos { .. } => {
++                Self::new(target_lexicon::OperatingSystem::Zos)
++            }
+         }
+     }
+ }
+diff --git a/crates/uv-python/python/get_interpreter_info.py b/crates/uv-python/python/get_interpreter_info.py
+index c8a59f3..da059cf 100644
+--- a/crates/uv-python/python/get_interpreter_info.py
++++ b/crates/uv-python/python/get_interpreter_info.py
+@@ -542,6 +542,16 @@ def get_operating_system_and_architecture():
+             "name": operating_system,
+             "release": version,
+         }
++    elif operating_system == "os390":
++        # z/OS: sysconfig.get_platform() returns "os390-<version>-<build>"
++        # e.g. "os390-29.00-8561"; the architecture is always s390x.
++        # Use the full version_arch ("29.00-8561") as release so that the
++        # platform tag becomes "os390_29_00_8561" matching installed wheels.
++        architecture = "s390x"
++        operating_system = {
++            "name": "zos",
++            "release": version_arch if version_arch else (version or ""),
++        }
+     else:
+         print(
+             json.dumps(
+diff --git a/crates/uv-torch/src/backend.rs b/crates/uv-torch/src/backend.rs
+index 6f050e3..13552f0 100644
+--- a/crates/uv-torch/src/backend.rs
++++ b/crates/uv-torch/src/backend.rs
+@@ -320,7 +320,8 @@ impl TorchStrategy {
+                     | Os::Illumos { .. }
+                     | Os::Haiku { .. }
+                     | Os::Android { .. }
+-                    | Os::Pyodide { .. } => {
++                    | Os::Pyodide { .. }
++                    | Os::Zos { .. } => {
+                         Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                     }
+                 }
+@@ -350,7 +351,8 @@ impl TorchStrategy {
+                 | Os::Illumos { .. }
+                 | Os::Haiku { .. }
+                 | Os::Android { .. }
+-                | Os::Pyodide { .. } => {
++                | Os::Pyodide { .. }
++                | Os::Zos { .. } => {
+                     Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                 }
+             },
+@@ -368,7 +370,8 @@ impl TorchStrategy {
+                 | Os::Illumos { .. }
+                 | Os::Haiku { .. }
+                 | Os::Android { .. }
+-                | Os::Pyodide { .. } => {
++                | Os::Pyodide { .. }
++                | Os::Zos { .. } => {
+                     Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                 }
+             },

@@ -9,13 +9,13 @@ This port targets **z/OS (s390x-ibm-zos)**, built from **uv 0.8.13** — the las
 | Component | Status |
 |-----------|--------|
 | All Rust crates compile | ✅ |
-| `uvx` binary | ✅ Linked (25 MB) |
-| `uv` binary (main) | 🔧 Link in progress (z/OS binder memory limits) |
-| z/OS runtime test | ⏳ Pending `uv` binary |
-
-The `uvx` helper binary links successfully. The main `uv` binary link is blocked by
-z/OS binder (IBM LD) memory constraints when processing ~9000 GOFF object files.
-Active investigation: consolidating objects via fat archive before linking.
+| `uv` binary | ✅ Linked and working |
+| `uv --version` | ✅ `uv 0.8.13` |
+| `uv init` | ✅ |
+| `uv run` | ✅ |
+| `uv add` (local wheel) | ✅ |
+| `uv python list` | ✅ |
+| PyPI network (TLS) | ⚠️ z/OS TLS stack limitation |
 
 ## Installation (via zopen)
 
