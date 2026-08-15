@@ -100,7 +100,14 @@ zopen_get_version() {
 # Cross-compilation infrastructure:
 #   https://github.ibm.com/compiler/rust-scripts  branch: itodorov/zos-cross-compile-setup
 # All patch sources: https://github.com/zopencommunity/uvport/tree/master/patches
-UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_1/uv-0.8.13-zos"
+# STABLE_uvport_2, not _1. The two are byte-for-byte different despite having
+# the same size; _2 carries the z/OS platform patch that lets uv accept Python
+# 3.14. Verified by running both: _1 fails at "Unknown operating system: `zos`",
+# _2 creates the environment and installs.
+#
+# Pinned to a specific release rather than "latest" so a build is reproducible,
+# which means this line has to be updated by hand whenever a new binary is cut.
+UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_2/uv-0.8.13-zos"
 
 zopen_init() {
   # -f matters: without it a 404 or an expired release leaves curl's HTML error
