@@ -3,86 +3,27 @@
 ## 0001-zos-platform-support.patch
 
 Adds z/OS recognition to uv's platform detection stack so that:
+- `uv venv`, `uv pip`, `uv add` work on z/OS
+- Correct wheel tags (`os390_29_00_8561`) are generated for Python 3.12/3.13/3.14
+- TLS connections to PyPI work (via rustls/ring big-endian patches)
 
-1. `get_interpreter_info.py` — Python interpreter query script maps
-   `sysconfig.get_platform()` result `"os390-<ver>-<build>"` to a recognised
-   operating system (`{"name": "zos", "release": "<ver>-<build>"}`) and sets
-   `architecture = "s390x"` (the build suffix is not an arch).
+### Files changed
 
-2. `uv-platform-tags` — adds `Os::Zos { release: String }` variant with:
-   - `serde(tag = "name")` deserialization from `{"name": "zos", ...}`
-   - `PlatformTag::Zos { release_arch }` matching the `os390_29_00_8561` format
-   - `FromStr` parser for `os390_*` platform tag strings
-   - Platform-tag generation: `os390_<release_normalised>` (dots/dashes → `_`)
+| File | Change |
+|------|--------|
+| `crates/uv-platform-tags/src/platform.rs` | Add `Zos { release }` OS variant |
+| `crates/uv-platform-tags/src/platform_tag.rs` | Add `Zos { release_arch }` tag; format as `os390_<release_arch>` |
+| `crates/uv-platform-tags/src/tags.rs` | Map `Os::Zos` → `PlatformTag::Zos`; convert `29.00-8561` → `29_00_8561` |
+| `crates/uv-platform/src/os.rs` | `Os::Zos` from `uv_platform_tags::Os::Zos` |
+| `crates/uv-python/python/get_interpreter_info.py` | Handle both `os390` (3.12/3.13) and `zos` (3.14+) from `sysconfig.get_platform()` |
+| `crates/uv-torch/src/backend.rs` | Skip torch backend on z/OS |
 
-3. `uv-platform` — adds `Os::Zos` arm in `From<uv_platform_tags::Os>` mapping to
-   `target_lexicon::OperatingSystem::Zos`.
+### Python 3.14 note (`zos` platform)
 
-4. `uv-torch` — adds `Os::Zos { .. }` to the CPU-fallback arms in
-   `TorchAccelerator::index_urls()`.
+Python 3.14 changed `sysconfig.get_platform()` from `os390-29.00-8561` to just `zos`
+(no version/build suffix). The patch handles this by:
+1. Matching `operating_system in ("os390", "zos")` — both spellings handled in one branch
+2. When `version_arch` is empty (3.14 case), reconstructing from `platform.release()` + `platform.machine()`
+3. Passing `release = "29.00-8561"` to uv's OS struct regardless of Python version
 
-## Cargo.toml — `[patch.crates-io]` additions
-
-Add the following to uv's workspace `Cargo.toml` (merged with the existing
-`[patch.crates-io]` block):
-
-```toml
-[patch.crates-io]
-# z/OS crate patches
-libc = { path = "patches/libc/libc-0.2.186-zos" }
-errno = { path = "patches/errno/errno-0.3.14-zos" }
-getrandom = { path = "patches/getrandom-02/getrandom-0.2.17-zos" }
-"getrandom04" = { package = "getrandom", path = "patches/getrandom-04/getrandom-0.4.3-zos" }
-mio = { path = "patches/mio/mio-1.2.2-zos" }
-socket2 = { path = "patches/socket2/socket2-0.6.5-zos" }
-rustix = { path = "patches/rustix/rustix-1.1.4-zos" }
-fs2 = { path = "patches/fs2/fs2-0.4.3-zos" }
-tokio = { path = "patches/tokio/tokio-1.53.1-zos" }
-nix = { path = "patches/nix-030/nix-0.30.1-zos" }
-thiserror = { path = "patches/thiserror/thiserror-2.0.12-zos" }
-ring = { path = "patches/ring/ring-0.17.14-zos" }
-sys-info = { path = "patches/sys-info/sys-info-0.9.1-zos" }
-target-lexicon = { path = "patches/target-lexicon/target-lexicon-0.13.2-zos" }
-```
-
-## `.cargo/config.toml` — cross-compilation settings
-
-```toml
-[target.s390x-ibm-zos]
-linker = "s390x-ibm-zos-cc"
-rustflags = ["-C", "target-feature=-vector"]
-
-[profile.zos]
-inherits = "release"
-opt-level = "z"
-debug = 0
-lto = false
-strip = true
-codegen-units = 1
-
-[resolver]
-incompatible-rust-versions = "allow"
-```
-
-## `libzos_fdopendir.a` stub (link-time injection)
-
-z/OS's system `fdopendir` (`@@FDODIR`) is EBCDIC-only and incompatible with
-ASCII-mode readdir (`@@A00372`). A stub `libzos_fdopendir.a` implements
-`fdopendir` using `/proc/self/fd/<fd>` → `readlink` → `opendir`, which always
-returns an ASCII-compatible `DIR*`. The stub is injected at link time by the
-cross-compilation server (before any `.x` side-deck files).
-
-See: `cross/server.py` in the rust-scripts build infrastructure.
-
-## `mio` pipe.rs fix (patches/mio/mio-1.2.2-zos)
-
-z/OS does not have `pipe2(2)`. The mio `new_raw()` function must use the
-`pipe(2) + fcntl` fallback path. Add `target_os = "zos"` to the `pipe+fcntl`
-`#[cfg(any(...))]` block in `src/sys/unix/pipe.rs`.
-
-## Build command
-
-```sh
-cargo build --profile zos --target s390x-ibm-zos -p uv --bin uv \
-    --ignore-rust-version
-```
+This gives identical wheel tags (`os390_29_00_8561`) for all three Python versions.

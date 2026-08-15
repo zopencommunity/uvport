@@ -101,22 +101,31 @@ index 95372be..00aee3d 100644
      }
  }
 diff --git a/crates/uv-python/python/get_interpreter_info.py b/crates/uv-python/python/get_interpreter_info.py
-index c8a59f3..da059cf 100644
+index c8a59f3..86c0fe1 100644
 --- a/crates/uv-python/python/get_interpreter_info.py
 +++ b/crates/uv-python/python/get_interpreter_info.py
-@@ -542,6 +542,16 @@ def get_operating_system_and_architecture():
+@@ -542,6 +542,25 @@ def get_operating_system_and_architecture():
              "name": operating_system,
              "release": version,
          }
-+    elif operating_system == "os390":
-+        # z/OS: sysconfig.get_platform() returns "os390-<version>-<build>"
-+        # e.g. "os390-29.00-8561"; the architecture is always s390x.
-+        # Use the full version_arch ("29.00-8561") as release so that the
++    elif operating_system in ("os390", "zos"):
++        # z/OS: sysconfig.get_platform() returns either:
++        #   "os390-<version>-<build>"  (Python 3.12, 3.13)
++        #   "zos"                      (Python 3.14+, no version component)
++        # In both cases the architecture is always s390x and we want
++        # release = "<version>-<build>" (e.g. "29.00-8561") so the wheel
 +        # platform tag becomes "os390_29_00_8561" matching installed wheels.
 +        architecture = "s390x"
++        if not version_arch:
++            # Python 3.14+ reports just "zos" — reconstruct from platform module
++            release = platform.release()   # "29.00"
++            machine = platform.machine()   # "8561"
++            release_str = f"{release}-{machine}" if (release and machine) else ""
++        else:
++            release_str = version_arch
 +        operating_system = {
 +            "name": "zos",
-+            "release": version_arch if version_arch else (version or ""),
++            "release": release_str,
 +        }
      else:
          print(
