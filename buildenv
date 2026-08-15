@@ -6,12 +6,31 @@ export ZOPEN_NAME="uv-${UV_VERSION}"
 export ZOPEN_BUILD_LINE="STABLE"
 export ZOPEN_STABLE_URL="https://github.com/astral-sh/uv.git"
 export ZOPEN_STABLE_TAG="${UV_VERSION}"
-export ZOPEN_STABLE_TYPE="GIT"
-export ZOPEN_STABLE_DEPS=" "
+# BARE, not GIT. ZOPEN_TYPE alone does not decide this: zopen-build overwrites
+# it from the per-line variable, so declaring GIT here made the build clone all
+# of astral-sh/uv into ./uv -- the very name zopen_init then tries to curl the
+# binary onto -- and then attempt to apply patches/ to that clone. Those patches
+# belong to the Linux cross-compilation, not to this build, and the run died
+# with "async_http_range_reader-zos/Cargo.toml: does not exist in index".
+#
+# Nothing is compiled here. The port fetches a binary that was cross-compiled
+# elsewhere, so there is no source tree to clone and nothing to patch.
+export ZOPEN_STABLE_TYPE="BARE"
+export ZOPEN_DEV_TYPE="BARE"
+# check_python is needed at build time, not only at runtime. uv locates an
+# interpreter from PATH, so without it here the check phase fails with
+#
+#   error: No interpreter found in managed installations or search path
+#
+# which reads as uv being broken rather than as the build environment having no
+# Python in it.
+export ZOPEN_STABLE_DEPS="check_python"
 export ZOPEN_DEV_URL="https://github.com/astral-sh/uv.git"
-export ZOPEN_DEV_DEPS=""
+export ZOPEN_DEV_DEPS="check_python"
 export ZOPEN_CATEGORIES="utilities"
-export ZOPEN_RUNTIME_DEPS="python"
+# check_python is the port name; there is no "python" in the release index, so
+# the dependency silently failed to resolve.
+export ZOPEN_RUNTIME_DEPS="check_python"
 
 export ZOPEN_TYPE="BARE"
 export ZOPEN_BOOTSTRAP="skip"
@@ -20,13 +39,31 @@ export ZOPEN_MAKE="skip"
 export ZOPEN_CHECK="zopen_custom_check"
 export ZOPEN_INSTALL="zopen_custom_install"
 
+# Report what the check actually found. This used to print a fixed
+# "0 failures, 1 test" regardless of outcome, so a check that ran and failed
+# still scored as a clean pass -- the only thing that stopped a broken binary
+# shipping was zopen_custom_check exiting non-zero.
 zopen_check_results() {
-  dir="$1"
-  pfx="$2"
-  echo "actualFailures:0"
-  echo "totalTests:1"
+  dir="$1"; pfx="$2"; chk="${dir}/${pfx}_check.log"
+  # No "|| echo 0": grep -c prints 0 when nothing matches and also exits 1, so
+  # the fallback appends a second zero and the arithmetic dies with FSUM9224.
+  passed=$(grep -c "^PASS:" "${chk}" 2>/dev/null)
+  failed=$(grep -c "^FAIL:" "${chk}" 2>/dev/null)
+  passed=${passed:-0}
+  failed=${failed:-0}
+  total=$((passed + failed))
+
+  # A check that died before its first assertion leaves no PASS and no FAIL, so
+  # counting only those would score a crash as success -- which is the failure
+  # this function previously had by construction.
+  if [ "${total}" -eq 0 ]; then
+    failed=1
+    total=1
+  fi
+
+  echo "actualFailures:${failed}"
+  echo "totalTests:${total}"
   echo "expectedFailures:0"
-  echo "expectedTotalTests:1"
 }
 
 zopen_get_version() {
@@ -63,20 +100,93 @@ zopen_get_version() {
 # Cross-compilation infrastructure:
 #   https://github.ibm.com/compiler/rust-scripts  branch: itodorov/zos-cross-compile-setup
 # All patch sources: https://github.com/zopencommunity/uvport/tree/master/patches
+UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_1/uv-0.8.13-zos"
+
 zopen_init() {
-  curl -L -o uv \
-    https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_1/uv-0.8.13-zos
+  # -f matters: without it a 404 or an expired release leaves curl's HTML error
+  # page in ./uv, which then gets chtag -b and chmod +x applied and fails later
+  # as a mangled binary rather than as a failed download.
+  if ! curl -fL --retry 3 -o uv "${UV_BINARY_URL}"; then
+    printError "Could not download the uv binary from ${UV_BINARY_URL}"
+  fi
+
+  # A 155 MB executable fetched over the network and installed onto PATH is
+  # worth checking. Size is a weak check but catches a truncated transfer, which
+  # is the failure this has actually seen; a published sha256 would be better
+  # and should replace this once the release carries one.
+  _uv_bytes=$(ls -l uv | awk '{print $5}')
+  if [ "${_uv_bytes:-0}" -lt 100000000 ]; then
+    printError "Downloaded uv is ${_uv_bytes} bytes, far short of the expected ~155 MB; treating as a truncated download"
+  fi
+
   chtag -b ./uv
   chmod +x ./uv
+  printInfo "Downloaded uv binary: ${_uv_bytes} bytes"
 }
 
+# Exercise what uv is for, not just that the binary starts.
+#
+# "uv --version" passes on a binary that cannot resolve, cannot open a TLS
+# connection, and cannot install anything -- which is most of what could go
+# wrong with a cross-compiled Rust artifact whose TLS stack needed big-endian
+# fixes. Each step below is something a user would do on their first day.
 zopen_custom_check() {
-  ./uv --version
-  rc=$?
-  if [ $rc -ne 0 ]; then
-    echo "FAIL: uv --version returned $rc" >&2
-    exit 1
-  fi
+  # Resolve both from the working directory rather than ZOPEN_ROOT: the check
+  # runs in the directory zopen_init downloaded into, and ZOPEN_ROOT points
+  # elsewhere, so paths built from it silently miss the binary and every step
+  # after the first fails for a reason that has nothing to do with uv.
+  _uv="$(pwd)/uv"
+  _uv_work="$(pwd)/.uv-check"
+
+  _uv_pass=0
+  _uv_fail=0
+
+  # Each command runs in a subshell. Without one, the "cd" a step needs stays in
+  # effect for every step after it, so one failure cascades into several and the
+  # log blames the wrong thing.
+  _uv_check() {
+    if ( eval "$2" ) > "${_uv_work}/last.log" 2>&1; then
+      echo "PASS: $1"
+      _uv_pass=$((_uv_pass + 1))
+    else
+      echo "FAIL: $1" >&2
+      # Say why. A bare FAIL leaves no way to tell a missing binary from a
+      # network problem from a permissions one, and the difference is the whole
+      # diagnosis.
+      sed 's/^/       /' "${_uv_work}/last.log" 2>/dev/null | head -5 >&2
+      _uv_fail=$((_uv_fail + 1))
+    fi
+  }
+
+  # Keep uv's cache inside the build tree. Left to itself it lands under $HOME,
+  # which on this system is small enough that a cache fills it and the next
+  # build fails with errors that look nothing like a full filesystem.
+  rm -rf "${_uv_work}"
+  mkdir -p "${_uv_work}"
+  UV_CACHE_DIR="${_uv_work}/cache"
+  export UV_CACHE_DIR
+
+  _uv_check "uv reports its version" \
+    "'${_uv}' --version | grep -q '${UV_VERSION}'"
+  _uv_check "uv lists the interpreters it can see" \
+    "'${_uv}' python list"
+  _uv_check "uv init creates a project" \
+    "cd '${_uv_work}' && '${_uv}' init proj"
+  _uv_check "uv venv creates an environment" \
+    "cd '${_uv_work}/proj' && '${_uv}' venv"
+
+  # The one that matters most. Reaching PyPI means the rustls/ring TLS stack
+  # works, which is the part that needed big-endian corrections for this
+  # platform and the part most likely to regress on a rebuild.
+  _uv_check "uv pip install fetches a package from PyPI over TLS" \
+    "cd '${_uv_work}/proj' && '${_uv}' pip install --python .venv/bin/python idna"
+  _uv_check "the installed package imports" \
+    "cd '${_uv_work}/proj' && .venv/bin/python -c 'import idna; idna.encode(\"example.com\")'"
+
+  echo "uv ${UV_VERSION} -- ${_uv_pass} passed, ${_uv_fail} failed"
+  rm -rf "${_uv_work}"
+
+  [ "${_uv_fail}" -eq 0 ]
 }
 
 zopen_custom_install() {
