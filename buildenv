@@ -1,5 +1,5 @@
 # bump: uv-version /UV_VERSION="(.*)"/ https://github.com/astral-sh/uv.git|semver:*
-UV_VERSION="0.8.13"
+UV_VERSION="0.12.23"
 
 export ZOPEN_PROJECT_NAME="uv"
 export ZOPEN_NAME="uv-${UV_VERSION}"
@@ -70,12 +70,12 @@ zopen_get_version() {
   echo "${UV_VERSION}"
 }
 
-# uv 0.8.13 was cross-compiled from source (astral-sh/uv 0.8.13) on a
-# Linux-on-Power (LoP, ppc64le) host using an IBM-internal Rust cross-compiler
-# targeting s390x-ibm-zos. This is the last 0.8.x release with rust-version = "1.86",
-# matching the IBM z/OS Rust toolchain.
+# uv 0.12.23 was cross-compiled from source on a Linux-on-Power (LoP,
+# ppc64le) host using the IBM Rust 1.86 cross-compiler targeting
+# s390x-ibm-zos. Its newer declared MSRV is intentionally bypassed with
+# --ignore-rust-version; targeted compatibility patches provide Rust 1.86 support.
 #
-# Working functionality (as of v0.8.13-tls release):
+# Working functionality (validated with the v0.12.23 release binaries):
 #   uv --version         OK
 #   uv init              OK
 #   uv run               OK
@@ -114,13 +114,13 @@ zopen_init() {
     printError "Could not download the uv binary from ${UV_BINARY_URL}"
   fi
 
-  # A 155 MB executable fetched over the network and installed onto PATH is
+  # A roughly 198 MB executable fetched over the network and installed onto PATH is
   # worth checking. Size is a weak check but catches a truncated transfer, which
   # is the failure this has actually seen; a published sha256 would be better
   # and should replace this once the release carries one.
   _uv_bytes=$(ls -l uv | awk '{print $5}')
   if [ "${_uv_bytes:-0}" -lt 100000000 ]; then
-    printError "Downloaded uv is ${_uv_bytes} bytes, far short of the expected ~155 MB; treating as a truncated download"
+    printError "Downloaded uv is ${_uv_bytes} bytes, far short of the expected ~198 MB; treating as a truncated download"
   fi
 
   if ! curl -fL --retry 3 -o uvx "${UVX_BINARY_URL}"; then

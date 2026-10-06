@@ -1,8 +1,9 @@
 # uvport — z/OS port of [uv](https://github.com/astral-sh/uv)
 
 uv is an extremely fast Python package and project manager written in Rust.
-This port targets **z/OS (s390x-ibm-zos)**, built from **uv 0.8.13** — the last
-0.8.x release with `rust-version = "1.86"`, matching the IBM z/OS Rust toolchain.
+This port targets **z/OS (s390x-ibm-zos)** and currently ships **uv 0.12.23**.
+It is built with the IBM Rust 1.86 toolchain using `--ignore-rust-version` plus
+targeted source and dependency compatibility patches.
 
 ## Status
 
@@ -11,12 +12,12 @@ This port targets **z/OS (s390x-ibm-zos)**, built from **uv 0.8.13** — the las
 | All Rust crates compile | ✅ |
 | `uv` binary | ✅ Linked and working |
 | `uvx` binary | ✅ Separate wrapper binary; invokes sibling `uv tool uvx` |
-| `uv --version` | ✅ `uv 0.8.13` |
+| `uv --version` | ✅ `uv 0.12.23` |
 | `uv init` | ✅ |
 | `uv run` | ✅ |
 | `uv add` (local wheel) | ✅ |
 | `uv python list` | ✅ |
-| PyPI network (TLS) | ⚠️ z/OS TLS stack limitation |
+| PyPI network (TLS) | ✅ rustls + ring with z/OS big-endian fixes |
 
 ## Installation (via zopen)
 
@@ -31,9 +32,9 @@ zopen install uv
 > Once release assets are published:
 
 ```sh
-curl -L -o uv https://github.com/zopencommunity/uvport/releases/download/v0.8.13/uv
+curl -L -o uv https://github.com/zopencommunity/uvport/releases/download/v0.12.23/uv
 chtag -b uv && chmod +x uv
-curl -L -o uvx https://github.com/zopencommunity/uvport/releases/download/v0.8.13/uvx
+curl -L -o uvx https://github.com/zopencommunity/uvport/releases/download/v0.12.23/uvx
 chtag -b uvx && chmod +x uvx
 ```
 
@@ -64,15 +65,14 @@ uv sync
 
 ## Version pinning rationale
 
-| uv version | rust-version | Notes |
+| uv version | Build approach | Status |
 |---|---|---|
-| 0.8.0–0.8.13 | 1.86 | ✅ Our target — matches z/OS Rust toolchain |
-| 0.8.14–0.8.18 | 1.87 | ❌ |
-| 0.8.19+ | 1.88 | ❌ |
+| 0.8.13 | Native Rust 1.86 MSRV | ✅ Previous release |
+| 0.12.23 | Rust 1.86 with `--ignore-rust-version` and compatibility patches | ✅ Current release |
 
 ## Cross-compilation
 
-uv 0.8.13 is cross-compiled on Linux-on-Power (ppc64le) using an IBM Rust toolchain
+uv 0.12.23 is cross-compiled on Linux-on-Power (ppc64le) using an IBM Rust toolchain
 targeting `s390x-ibm-zos`. The build infrastructure lives in:
 <https://github.ibm.com/compiler/rust-scripts> branch `itodorov/zos-cross-compile-setup`
 
@@ -98,7 +98,7 @@ Cargo 1.86 cannot execute z/OS `.so` proc-macro crates on a Linux host.
 The workaround: pre-build all proc-macros natively for `powerpc64le-unknown-linux-gnu`
 and inject them via `RUSTFLAGS='--extern crate=path.so ...'`.
 
-Affected proc-macros for uv 0.8.13:
+Affected proc-macros include:
 `rkyv_derive`, `clap_derive`, `miette_derive`, `schemars_derive`,
 `thiserror_impl`, `tracing_attributes`, `async_trait`, `pin_project_internal`,
 `tokio_macros`, `serde_derive`, `ref_cast_impl`, `dyn_clone_derive`, and more.
