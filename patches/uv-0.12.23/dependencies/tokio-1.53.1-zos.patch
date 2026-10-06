@@ -1,0 +1,102 @@
+--- a/src/fs/read_dir.rs
++++ b/src/fs/read_dir.rs
+@@ -21,6 +21,17 @@
+ 
+ const CHUNK_SIZE: usize = 32;
+ 
++#[derive(Debug)]
++struct StdDirEntry(std::fs::DirEntry);
++
++// z/OS std::fs::DirEntry contains libc::dirent::d_extra, an opaque libc
++// bookkeeping pointer. The directory entry owns no pointee through d_extra;
++// moving or sharing the immutable entry has the same semantics as on Unix.
++#[cfg(target_os = "zos")]
++unsafe impl Send for StdDirEntry {}
++#[cfg(target_os = "zos")]
++unsafe impl Sync for StdDirEntry {}
++
+ /// Returns a stream over the entries within a directory.
+ ///
+ /// This is an async version of [`std::fs::read_dir`].
+@@ -144,7 +155,7 @@
+                     target_os = "vita",
+                 )))]
+                 file_type: std.file_type().ok(),
+-                std: Arc::new(std),
++                std: Arc::new(StdDirEntry(std)),
+             }));
+ 
+             if !success {
+@@ -208,7 +219,7 @@
+         target_os = "vita",
+     )))]
+     file_type: Option<FileType>,
+-    std: Arc<std::fs::DirEntry>,
++    std: Arc<StdDirEntry>,
+ }
+ 
+ impl DirEntry {
+@@ -242,7 +253,7 @@
+     ///
+     /// The exact text, of course, depends on what files you have in `.`.
+     pub fn path(&self) -> PathBuf {
+-        self.std.path()
++        self.std.0.path()
+     }
+ 
+     /// Returns the bare file name of this directory entry without any other
+@@ -263,7 +274,7 @@
+     /// # }
+     /// ```
+     pub fn file_name(&self) -> OsString {
+-        self.std.file_name()
++        self.std.0.file_name()
+     }
+ 
+     /// Returns the metadata for the file that this entry points at.
+@@ -298,7 +309,7 @@
+     /// ```
+     pub async fn metadata(&self) -> io::Result<Metadata> {
+         let std = self.std.clone();
+-        asyncify(move || std.metadata()).await
++        asyncify(move || std.0.metadata()).await
+     }
+ 
+     /// Returns the file type for the file that this entry points at.
+@@ -346,12 +357,12 @@
+         }
+ 
+         let std = self.std.clone();
+-        asyncify(move || std.file_type()).await
++        asyncify(move || std.0.file_type()).await
+     }
+ 
+     /// Returns a reference to the underlying `std::fs::DirEntry`.
+     #[cfg(unix)]
+     pub(super) fn as_inner(&self) -> &std::fs::DirEntry {
+-        &self.std
++        &self.std.0
+     }
+ }
+--- a/src/net/unix/ucred.rs
++++ b/src/net/unix/ucred.rs
+@@ -71,7 +71,8 @@
+     target_os = "espidf",
+     target_os = "nuttx",
+     target_os = "vita",
+-    target_os = "hurd"
++    target_os = "hurd",
++    target_os = "zos"
+ ))]
+ pub(crate) use self::impl_noproc::get_peer_cred;
+ 
+@@ -402,7 +403,8 @@
+     target_os = "espidf",
+     target_os = "nuttx",
+     target_os = "vita",
+-    target_os = "hurd"
++    target_os = "hurd",
++    target_os = "zos"
+ ))]
+ pub(crate) mod impl_noproc {
+     use crate::net::unix::UnixStream;

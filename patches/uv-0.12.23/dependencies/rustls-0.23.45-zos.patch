@@ -1,0 +1,13 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -68,9 +68,8 @@
+ ]
+ custom-provider = []
+ default = [
+-    "aws_lc_rs",
++    "ring",
+     "logging",
+-    "prefer-post-quantum",
+     "std",
+     "tls12",
+ ]

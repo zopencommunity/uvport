@@ -1,0 +1,51 @@
+--- a/src/platform/unix/mod.rs
++++ b/src/platform/unix/mod.rs
+@@ -9,7 +9,7 @@
+ 
+ use crate::error::Error as CtrlcError;
+ 
+-#[cfg(not(target_vendor = "apple"))]
++#[cfg(not(any(target_vendor = "apple", target_os = "zos")))]
+ #[allow(static_mut_refs)] // rust-version = "1.69.0"
+ mod implementation {
+     static mut SEMAPHORE: nix::libc::sem_t = unsafe { std::mem::zeroed() };
+@@ -30,6 +30,39 @@
+     }
+ }
+ 
++#[cfg(target_os = "zos")]
++mod implementation {
++    static mut PIPE_RD: nix::libc::c_int = -1;
++    static mut PIPE_WR: nix::libc::c_int = -1;
++
++    pub unsafe fn sem_init() {
++        let mut fds = [0i32; 2];
++        if unsafe { nix::libc::pipe(fds.as_mut_ptr()) } == 0 {
++            unsafe {
++                PIPE_RD = fds[0];
++                PIPE_WR = fds[1];
++            }
++        }
++    }
++
++    pub unsafe fn sem_post() {
++        let buf = [1u8; 1];
++        let fd = unsafe { PIPE_WR };
++        let _ = unsafe { nix::libc::write(fd, buf.as_ptr().cast(), 1) };
++    }
++
++    pub unsafe fn sem_wait_forever() {
++        loop {
++            let mut buf = [0u8; 1];
++            let fd = unsafe { PIPE_RD };
++            let result = unsafe { nix::libc::read(fd, buf.as_mut_ptr().cast(), 1) };
++            if result >= 0 || unsafe { *nix::libc::__errno() } != nix::libc::EINTR {
++                break;
++            }
++        }
++    }
++}
++
+ #[cfg(target_vendor = "apple")]
+ mod implementation {
+     use dispatch2::{DispatchRetained, DispatchSemaphore, DispatchTime};

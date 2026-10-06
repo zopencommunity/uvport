@@ -1,0 +1,20 @@
+--- a/src/paths.rs
++++ b/src/paths.rs
+@@ -212,7 +212,7 @@
+         use std::os::unix::fs::PermissionsExt;
+ 
+         // these constants are u16 on macOS
+-        let mask = u32::from(libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO);
++        let mask = (libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO) as u32;
+         let mode = meta.permissions().mode() & mask;
+ 
+         std::fs::Permissions::from_mode(mode)
+@@ -964,7 +964,7 @@
+ 
+         let new_perms = std::fs::metadata(tmp.path()).unwrap().permissions();
+ 
+-        let mask = u32::from(libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO);
++        let mask = (libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO) as u32;
+         assert_eq!(original_perms.mode(), new_perms.mode() & mask);
+     }
+ 

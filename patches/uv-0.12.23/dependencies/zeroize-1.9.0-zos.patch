@@ -1,0 +1,18 @@
+--- a/src/barrier.rs
++++ b/src/barrier.rs
+@@ -53,6 +53,7 @@
+ pub fn optimization_barrier<T: ?Sized>(val: &T) {
+     #[cfg(all(
+         not(miri),
++        not(target_os = "zos"),
+         any(
+             target_arch = "aarch64",
+             target_arch = "arm",
+@@ -74,6 +75,7 @@
+     }
+     #[cfg(not(all(
+         not(miri),
++        not(target_os = "zos"),
+         any(
+             target_arch = "aarch64",
+             target_arch = "arm",

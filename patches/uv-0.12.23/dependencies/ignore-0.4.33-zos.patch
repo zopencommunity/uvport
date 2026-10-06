@@ -1,0 +1,7 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![feature(let_chains)]
+ /*!
+ The ignore crate provides a fast recursive directory iterator that respects
+ various filters such as globs, file types and `.gitignore` files. The precise

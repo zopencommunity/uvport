@@ -1,0 +1,11 @@
+--- a/src/unix/utimes.rs
++++ b/src/unix/utimes.rs
+@@ -60,6 +60,8 @@
+     libc::timeval {
+         tv_sec: ft.seconds() as libc::time_t,
+         tv_usec: (ft.nanoseconds() / 1000) as libc::suseconds_t,
++        #[cfg(target_os = "zos")]
++        tv_usec_pad: 0,
+     }
+ }
+ 

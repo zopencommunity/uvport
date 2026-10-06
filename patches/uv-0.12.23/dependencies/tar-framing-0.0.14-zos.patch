@@ -1,0 +1,7 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![feature(let_chains)]
+ //! Low level framing of tar streams.
+ //!
+ //! This crate provides two APIs:

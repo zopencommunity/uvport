@@ -1,6 +1,12 @@
-# Patches for uv 0.8.13 z/OS port
+# Patches for the uv z/OS port
 
-All patches are generated with `diff -ruN <orig>/ <patched>/` against the
+The complete uv 0.12.23 patch set is in
+[`uv-0.12.23/`](uv-0.12.23/README.md), including the exact lockfile, all
+modified dependencies, compatibility stubs, and proc-macro wrapper.
+
+The directories below document the earlier uv 0.8.13 port.
+
+All legacy patches are generated with `diff -ruN <orig>/ <patched>/` against the
 crates.io registry version of each crate (or the upstream git commit used by uv).
 
 To reproduce the build, apply each patch to a local copy of the crate and add

@@ -1,0 +1,109 @@
+--- a/src/rustix/fs/dir_entry_inner.rs
++++ b/src/rustix/fs/dir_entry_inner.rs
+@@ -40,7 +40,7 @@
+         self.read_dir.remove_dir(self.file_name_bytes())
+     }
+ 
+-    #[cfg(not(any(target_os = "illumos", target_os = "solaris")))]
++    #[cfg(not(any(target_os = "illumos", target_os = "solaris", target_os = "zos")))]
+     #[inline]
+     #[allow(clippy::unnecessary_wraps)]
+     pub(crate) fn file_type(&self) -> io::Result<FileType> {
+@@ -60,7 +60,7 @@
+         })
+     }
+ 
+-    #[cfg(any(target_os = "illumos", target_os = "solaris"))]
++    #[cfg(any(target_os = "illumos", target_os = "solaris", target_os = "zos"))]
+     #[inline]
+     pub(crate) fn file_type(&self) -> io::Result<FileType> {
+         // These platforms don't have the file type on the dirent, so we must lstat the file.
+--- a/src/rustix/fs/dir_utils.rs
++++ b/src/rustix/fs/dir_utils.rs
+@@ -145,6 +145,7 @@
+         target_os = "wasi",
+         target_os = "illumos",
+         target_os = "solaris",
++        target_os = "zos",
+     ))]
+     {
+         OFlags::empty()
+--- a/src/rustix/fs/metadata_ext.rs
++++ b/src/rustix/fs/metadata_ext.rs
+@@ -100,16 +100,20 @@
+             #[cfg(target_os = "wasi")]
+             permissions: ImplPermissionsExt::default(),
+ 
+-            #[cfg(not(target_os = "wasi"))]
++            #[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+             modified: system_time_from_rustix(
+                 stat.st_mtime.try_into().unwrap(),
+                 stat.st_mtime_nsec as _,
+             ),
+-            #[cfg(not(target_os = "wasi"))]
++            #[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+             accessed: system_time_from_rustix(
+                 stat.st_atime.try_into().unwrap(),
+                 stat.st_atime_nsec as _,
+             ),
++            #[cfg(target_os = "zos")]
++            modified: system_time_from_rustix(stat.st_mtime.try_into().unwrap(), 0),
++            #[cfg(target_os = "zos")]
++            accessed: system_time_from_rustix(stat.st_atime.try_into().unwrap(), 0),
+ 
+             #[cfg(target_os = "wasi")]
+             modified: system_time_from_rustix(stat.st_mtim.tv_sec, stat.st_mtim.tv_nsec as _),
+@@ -161,28 +165,34 @@
+                 },
+                 ino: stat.st_ino.into(),
+                 #[cfg(not(target_os = "wasi"))]
+-                mode: u32::from(stat.st_mode),
+-                nlink: u64::from(stat.st_nlink),
++                mode: stat.st_mode as u32,
++                nlink: stat.st_nlink as u64,
+                 #[cfg(not(target_os = "wasi"))]
+-                uid: stat.st_uid,
++                uid: stat.st_uid as u32,
+                 #[cfg(not(target_os = "wasi"))]
+-                gid: stat.st_gid,
++                gid: stat.st_gid as u32,
+                 #[cfg(not(target_os = "wasi"))]
+                 rdev: u64::try_from(stat.st_rdev).unwrap(),
+                 #[cfg(not(target_os = "wasi"))]
+                 size: u64::try_from(stat.st_size).unwrap(),
+                 #[cfg(not(target_os = "wasi"))]
+                 atime: i64::try_from(stat.st_atime).unwrap(),
+-                #[cfg(not(target_os = "wasi"))]
++                #[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+                 atime_nsec: stat.st_atime_nsec as _,
++                #[cfg(target_os = "zos")]
++                atime_nsec: 0,
+                 #[cfg(not(target_os = "wasi"))]
+                 mtime: i64::try_from(stat.st_mtime).unwrap(),
+-                #[cfg(not(target_os = "wasi"))]
++                #[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+                 mtime_nsec: stat.st_mtime_nsec as _,
++                #[cfg(target_os = "zos")]
++                mtime_nsec: 0,
+                 #[cfg(not(target_os = "wasi"))]
+                 ctime: i64::try_from(stat.st_ctime).unwrap(),
+-                #[cfg(not(target_os = "wasi"))]
++                #[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+                 ctime_nsec: stat.st_ctime_nsec as _,
++                #[cfg(target_os = "zos")]
++                ctime_nsec: i64::from(stat.st_ctimemsec) * 1_000_000,
+                 #[cfg(not(target_os = "wasi"))]
+                 blksize: u64::try_from(stat.st_blksize).unwrap(),
+                 #[cfg(not(target_os = "wasi"))]
+--- a/src/rustix/fs/oflags.rs
++++ b/src/rustix/fs/oflags.rs
+@@ -31,7 +31,8 @@
+         target_os = "watchos",
+         target_os = "visionos",
+         target_os = "freebsd",
+-        target_os = "fuchsia"
++        target_os = "fuchsia",
++        target_os = "zos"
+     )))]
+     if options.rsync {
+         oflags |= OFlags::RSYNC;

@@ -1,0 +1,249 @@
+--- a/src/socket.rs
++++ b/src/socket.rs
+@@ -1216,7 +1216,8 @@
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn header_included_v4(&self) -> io::Result<bool> {
+@@ -1248,7 +1249,8 @@
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn set_header_included_v4(&self, included: bool) -> io::Result<()> {
+@@ -1356,7 +1358,8 @@
+         target_os = "vita",
+         target_os = "cygwin",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn join_multicast_v4_n(
+         &self,
+@@ -1392,7 +1395,8 @@
+         target_os = "vita",
+         target_os = "cygwin",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn leave_multicast_v4_n(
+         &self,
+@@ -1429,7 +1433,8 @@
+         target_os = "espidf",
+         target_os = "vita",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn join_ssm_v4(
+         &self,
+@@ -1469,7 +1474,8 @@
+         target_os = "espidf",
+         target_os = "vita",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn leave_ssm_v4(
+         &self,
+@@ -1692,7 +1698,8 @@
+         target_os = "vita",
+         target_os = "cygwin",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn set_recv_tos_v4(&self, recv_tos: bool) -> io::Result<()> {
+         unsafe {
+@@ -1727,7 +1734,8 @@
+         target_os = "vita",
+         target_os = "cygwin",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn recv_tos_v4(&self) -> io::Result<bool> {
+         unsafe {
+@@ -1773,7 +1781,8 @@
+             target_os = "dragonfly",
+             target_os = "netbsd",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn header_included_v6(&self) -> io::Result<bool> {
+@@ -1806,7 +1815,8 @@
+             target_os = "dragonfly",
+             target_os = "netbsd",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn set_header_included_v6(&self, included: bool) -> io::Result<()> {
+@@ -2107,7 +2117,8 @@
+         target_os = "nuttx",
+         target_os = "vita",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn recv_tclass_v6(&self) -> io::Result<bool> {
+         unsafe {
+@@ -2135,7 +2146,8 @@
+         target_os = "nuttx",
+         target_os = "vita",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++            target_os = "zos"
+     )))]
+     pub fn set_recv_tclass_v6(&self, recv_tclass: bool) -> io::Result<()> {
+         unsafe {
+@@ -2170,7 +2182,8 @@
+             target_os = "vita",
+             target_os = "cygwin",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn recv_hoplimit_v6(&self) -> io::Result<bool> {
+@@ -2201,7 +2214,8 @@
+             target_os = "vita",
+             target_os = "cygwin",
+             target_os = "wasi",
+-            target_os = "horizon"
++            target_os = "horizon",
++            target_os = "zos"
+         ))
+     ))]
+     pub fn set_recv_hoplimit_v6(&self, recv_hoplimit: bool) -> io::Result<()> {
+--- a/src/sys/unix.rs
++++ b/src/sys/unix.rs
+@@ -183,7 +183,8 @@
+         target_os = "espidf",
+         target_os = "nuttx",
+         target_os = "wasi",
+-        target_os = "horizon"
++        target_os = "horizon",
++        target_os = "zos"
+     ))
+ ))]
+ pub(crate) use libc::IP_HDRINCL;
+@@ -204,7 +205,8 @@
+     target_os = "vita",
+     target_os = "wasi",
+     target_os = "cygwin",
+-    target_os = "horizon"
++    target_os = "horizon",
++    target_os = "zos"
+ )))]
+ pub(crate) use libc::IP_RECVTOS;
+ #[cfg(not(any(
+@@ -277,6 +279,7 @@
+     target_os = "watchos",
+     target_os = "nuttx",
+     target_os = "wasi",
++    target_os = "zos",
+ )))]
+ pub(crate) use libc::{IPV6_ADD_MEMBERSHIP, IPV6_DROP_MEMBERSHIP};
+ #[cfg(any(
+@@ -292,6 +295,7 @@
+     target_os = "solaris",
+     target_os = "tvos",
+     target_os = "watchos",
++    target_os = "zos",
+     all(target_os = "wasi", not(target_env = "p1")),
+ ))]
+ pub(crate) use libc::{
+@@ -332,6 +336,7 @@
+     all(target_os = "nto", any(target_env = "nto70", target_env = "nto71"),),
+     target_os = "tvos",
+     target_os = "watchos",
++    target_os = "zos",
+ ))]
+ use libc::TCP_KEEPALIVE as KEEPALIVE_TIME;
+ #[cfg(not(any(
+@@ -344,6 +349,7 @@
+     target_os = "tvos",
+     target_os = "watchos",
+     target_os = "vita",
++    target_os = "zos",
+ )))]
+ use libc::TCP_KEEPIDLE as KEEPALIVE_TIME;
+ 
+@@ -434,6 +440,7 @@
+     target_os = "espidf",
+     target_os = "vita",
+     target_os = "cygwin",
++    target_os = "zos",
+ ))]
+ type IovLen = c_int;
+ #[cfg(target_os = "nuttx")]
+@@ -1033,11 +1040,18 @@
+         .map(|(_, addr)| addr)
+ }
+ 
+-#[cfg(not(target_os = "wasi"))]
++#[cfg(not(any(target_os = "wasi", target_os = "zos")))]
+ pub(crate) fn try_clone(fd: RawSocket) -> io::Result<RawSocket> {
+     syscall!(fcntl(fd, libc::F_DUPFD_CLOEXEC, 0))
+ }
+ 
++#[cfg(target_os = "zos")]
++pub(crate) fn try_clone(fd: RawSocket) -> io::Result<RawSocket> {
++    // z/OS has no F_DUPFD_CLOEXEC. The standard library sets close-on-exec
++    // where needed after adopting the duplicated descriptor.
++    syscall!(dup(fd))
++}
++
+ #[cfg(all(
+     feature = "all",
+     any(unix, all(target_os = "wasi", not(target_env = "p1"))),
+@@ -1252,10 +1266,14 @@
+         #[cfg_attr(target_env = "musl", allow(deprecated))]
+         Some(duration) => libc::timeval {
+             tv_sec: min(duration.as_secs(), libc::time_t::MAX as u64) as libc::time_t,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+             tv_usec: duration.subsec_micros() as libc::suseconds_t,
+         },
+         None => libc::timeval {
+             tv_sec: 0,
++            #[cfg(target_os = "zos")]
++            tv_usec_pad: 0,
+             tv_usec: 0,
+         },
+     }
+@@ -1439,7 +1457,8 @@
+     target_os = "vita",
+     target_os = "cygwin",
+     target_os = "wasi",
+-    target_os = "horizon"
++    target_os = "horizon",
++    target_os = "zos"
+ )))]
+ pub(crate) const fn to_mreqn(
+     multiaddr: &Ipv4Addr,

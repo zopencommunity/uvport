@@ -1,0 +1,10 @@
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -447,6 +447,7 @@
+                 // return an error, but on other platforms it may not. In
+                 // that sense we don't actually know if this will succeed or
+                 // not!
++                #[cfg(not(target_os = "zos"))]
+                 libc::pthread_kill(self.thread.as_pthread_t() as _, libc::SIGUSR1);
+             }
+             state = self

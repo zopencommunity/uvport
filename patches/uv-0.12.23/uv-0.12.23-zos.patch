@@ -1,0 +1,1484 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -240,7 +240,7 @@
+   "zstd",
+   "stream",
+   "system-proxy",
+-  "rustls",
++  "rustls-no-provider",
+   "socks",
+   "multipart",
+   "http2",
+@@ -393,9 +393,8 @@
+   "ring",
+ ], default-features = false }
+ rustls = { version = "0.23.36", default-features = false, features = [
+-  "aws_lc_rs",
++  "ring",
+   "logging",
+-  "prefer-post-quantum",
+   "std",
+   "tls12",
+ ] }
+@@ -542,3 +541,11 @@
+ # The profile that 'cargo dist' will build with.
+ [profile.dist]
+ inherits = "release"
++
++[profile.zos]
++inherits = "release"
++opt-level = "z"
++debug = 0
++codegen-units = 1
++lto = false
++strip = true
+diff --git a/crates/uv-audit/Cargo.toml b/crates/uv-audit/Cargo.toml
+index 8139f7c..2b89911 100644
+--- a/crates/uv-audit/Cargo.toml
++++ b/crates/uv-audit/Cargo.toml
+@@ -42,7 +42,7 @@ tracing = { workspace = true }
+ [dev-dependencies]
+ insta = { workspace = true }
+ reqwest = { workspace = true, default-features = false, features = [
+-  "rustls",
++  "rustls-no-provider",
+ ] }
+ serde_json = { workspace = true }
+ tokio = { workspace = true }
+diff --git a/crates/uv-audit/src/lib.rs b/crates/uv-audit/src/lib.rs
+index df0f087..9c3db0e 100644
+--- a/crates/uv-audit/src/lib.rs
++++ b/crates/uv-audit/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(if_let_guard)]
++
+ //! `uv-audit` provides types and interfaces for auditing Python dependencies.
+ 
+ pub use service::ProjectStatusAudit;
+diff --git a/crates/uv-auth/src/lib.rs b/crates/uv-auth/src/lib.rs
+index 755b0fc..5519ff1 100644
+--- a/crates/uv-auth/src/lib.rs
++++ b/crates/uv-auth/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(debug_closure_helpers, path_add_extension)]
++
+ pub use cache::CredentialsCache;
+ pub use credentials::{Credentials, CredentialsFromUrlError, Username};
+ pub use index::{AuthPolicy, Index, Indexes};
+diff --git a/crates/uv-bin-install/src/lib.rs b/crates/uv-bin-install/src/lib.rs
+index 6bdbba0..827863d 100644
+--- a/crates/uv-bin-install/src/lib.rs
++++ b/crates/uv-bin-install/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Binary download and installation utilities for uv.
+ //!
+ //! These utilities are specifically for consuming distributions that are _not_ Python packages,
+diff --git a/crates/uv-build-backend/src/lib.rs b/crates/uv-build-backend/src/lib.rs
+index b06e077..6754192 100644
+--- a/crates/uv-build-backend/src/lib.rs
++++ b/crates/uv-build-backend/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use itertools::Itertools;
+ mod metadata;
+ mod serde_verbatim;
+diff --git a/crates/uv-build-backend/src/source_dist.rs b/crates/uv-build-backend/src/source_dist.rs
+index 803aaf8..c1a2f27 100644
+--- a/crates/uv-build-backend/src/source_dist.rs
++++ b/crates/uv-build-backend/src/source_dist.rs
+@@ -326,10 +326,10 @@ fn write_source_dist(
+         }
+ 
+         // `pyproject.toml` is handled separately.
+-        if relative == "pyproject.toml" {
++        if relative == Path::new("pyproject.toml") {
+             continue;
+         }
+-        if relative == "pyproject.toml.orig" {
++        if relative == Path::new("pyproject.toml.orig") {
+             debug!("Ignoring existing `pyproject.toml.orig`");
+             continue;
+         }
+diff --git a/crates/uv-build-frontend/src/lib.rs b/crates/uv-build-frontend/src/lib.rs
+index 13843ea..40caef6 100644
+--- a/crates/uv-build-frontend/src/lib.rs
++++ b/crates/uv-build-frontend/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Build wheels from source distributions.
+ //!
+ //! <https://packaging.python.org/en/latest/specifications/source-distribution-format/>
+diff --git a/crates/uv-cache-info/src/cache_info.rs b/crates/uv-cache-info/src/cache_info.rs
+index 94ddfd5..c41a135 100644
+--- a/crates/uv-cache-info/src/cache_info.rs
++++ b/crates/uv-cache-info/src/cache_info.rs
+@@ -168,21 +168,19 @@ impl CacheInfo {
+                         );
+                     } else {
+                         // Fall back to the inode.
+-                        cfg_select! {
+-                            unix => {
+-                                use std::os::unix::fs::MetadataExt;
+-                                directories.insert(
+-                                    dir,
+-                                    Some(DirectoryTimestamp::Inode(metadata.ino())),
+-                                );
+-                            },
+-                            _ => {
+-                                warn!(
+-                                    "Failed to read creation time for directory: `{}`",
+-                                    path.display()
+-                                );
+-                            },
++                        #[cfg(unix)]
++                        {
++                            use std::os::unix::fs::MetadataExt;
++                            directories.insert(
++                                dir,
++                                Some(DirectoryTimestamp::Inode(metadata.ino())),
++                            );
+                         }
++                        #[cfg(not(unix))]
++                        warn!(
++                            "Failed to read creation time for directory: `{}`",
++                            path.display()
++                        );
+                     }
+                 }
+                 CacheKey::Git {
+diff --git a/crates/uv-cache-info/src/lib.rs b/crates/uv-cache-info/src/lib.rs
+index 092d406..af0e08d 100644
+--- a/crates/uv-cache-info/src/lib.rs
++++ b/crates/uv-cache-info/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ pub use crate::cache_info::*;
+ pub use crate::timestamp::*;
+ 
+diff --git a/crates/uv-cache-info/src/timestamp.rs b/crates/uv-cache-info/src/timestamp.rs
+index 0428281..21e3566 100644
+--- a/crates/uv-cache-info/src/timestamp.rs
++++ b/crates/uv-cache-info/src/timestamp.rs
+@@ -21,21 +21,20 @@ impl Timestamp {
+ 
+     /// Return the [`Timestamp`] for the given metadata.
+     pub fn from_metadata(metadata: &std::fs::Metadata) -> Self {
+-        cfg_select! {
+-            unix => {
+-                use std::os::unix::fs::MetadataExt;
+-
+-                let ctime =
+-                    u64::try_from(metadata.ctime()).expect("ctime to be representable as u64");
+-                let ctime_nsec = u32::try_from(metadata.ctime_nsec())
+-                    .expect("ctime_nsec to be representable as u32");
+-                let duration = std::time::Duration::new(ctime, ctime_nsec);
+-                Self(std::time::UNIX_EPOCH + duration)
+-            },
+-            _ => {
+-                let modified = metadata.modified().expect("modified time to be available");
+-                Self(modified)
+-            },
++        #[cfg(unix)]
++        {
++            use std::os::unix::fs::MetadataExt;
++            let ctime =
++                u64::try_from(metadata.ctime()).expect("ctime to be representable as u64");
++            let ctime_nsec = u32::try_from(metadata.ctime_nsec())
++                .expect("ctime_nsec to be representable as u32");
++            let duration = std::time::Duration::new(ctime, ctime_nsec);
++            Self(std::time::UNIX_EPOCH + duration)
++        }
++        #[cfg(not(unix))]
++        {
++            let modified = metadata.modified().expect("modified time to be available");
++            Self(modified)
+         }
+     }
+ 
+diff --git a/crates/uv-cache/src/removal.rs b/crates/uv-cache/src/removal.rs
+index 14d5dd5..63644eb 100644
+--- a/crates/uv-cache/src/removal.rs
++++ b/crates/uv-cache/src/removal.rs
+@@ -150,20 +150,17 @@ impl Removal {
+             // Remove the file.
+             self.add_file(&path, &metadata);
+             if metadata.is_symlink() {
+-                cfg_select! {
+-                    windows => {
+-                        use std::os::windows::fs::FileTypeExt;
+-
+-                        if metadata.file_type().is_symlink_dir() {
+-                            remove_dir(&path)?;
+-                        } else {
+-                            remove_file(&path)?;
+-                        }
+-                    },
+-                    _ => {
++                #[cfg(windows)]
++                {
++                    use std::os::windows::fs::FileTypeExt;
++                    if metadata.file_type().is_symlink_dir() {
++                        remove_dir(&path)?;
++                    } else {
+                         remove_file(&path)?;
+-                    },
++                    }
+                 }
++                #[cfg(not(windows))]
++                remove_file(&path)?;
+             } else {
+                 remove_file(&path)?;
+             }
+diff --git a/crates/uv-cli/src/lib.rs b/crates/uv-cli/src/lib.rs
+index eea00e5..bc1fc9b 100644
+--- a/crates/uv-cli/src/lib.rs
++++ b/crates/uv-cli/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::ffi::OsString;
+ use std::fmt::{self, Display, Formatter};
+ use std::ops::{Deref, DerefMut};
+diff --git a/crates/uv-client/src/base_client.rs b/crates/uv-client/src/base_client.rs
+index 78ee8f9..443fdc9 100644
+--- a/crates/uv-client/src/base_client.rs
++++ b/crates/uv-client/src/base_client.rs
+@@ -602,6 +602,12 @@ impl<'a> BaseClientBuilder<'a> {
+         security: Security,
+         redirect_policy: RedirectPolicy,
+     ) -> Result<Client, ClientBuildError> {
++        // reqwest's `rustls-no-provider` feature requires the application to
++        // install a provider explicitly. AWS-LC is unavailable on z/OS, so use
++        // the patched ring provider. Installation is process-global and an
++        // already-installed provider is harmless.
++        let _ = rustls::crypto::ring::default_provider().install_default();
++
+         // Configure the builder.
+         let client_builder = ClientBuilder::new()
+             .http1_title_case_headers()
+diff --git a/crates/uv-client/src/lib.rs b/crates/uv-client/src/lib.rs
+index 855ddf4..8ac0e5e 100644
+--- a/crates/uv-client/src/lib.rs
++++ b/crates/uv-client/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard, duration_constructors, slice_as_array)]
++
+ pub use base_client::{
+     AuthIntegration, BaseClient, BaseClientBuilder, ClientBuildError, DEFAULT_CONNECT_TIMEOUT,
+     DEFAULT_MAX_REDIRECTS, DEFAULT_READ_TIMEOUT, DEFAULT_READ_TIMEOUT_UPLOAD, DEFAULT_RETRIES,
+diff --git a/crates/uv-configuration/src/lib.rs b/crates/uv-configuration/src/lib.rs
+index 8899f96..61b6f54 100644
+--- a/crates/uv-configuration/src/lib.rs
++++ b/crates/uv-configuration/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, debug_closure_helpers)]
++
+ pub use active_environment::*;
+ pub use annotation_style::*;
+ pub use authentication::*;
+diff --git a/crates/uv-configuration/src/requirements_input.rs b/crates/uv-configuration/src/requirements_input.rs
+index 9f84226..99e9647 100644
+--- a/crates/uv-configuration/src/requirements_input.rs
++++ b/crates/uv-configuration/src/requirements_input.rs
+@@ -22,7 +22,7 @@ pub enum RequirementsInput {
+ impl RequirementsInput {
+     /// Render this input for user-facing display.
+     pub fn user_display(&self) -> impl Display + '_ {
+-        std::fmt::from_fn(|f| match self {
++        std::fmt::from_fn(move |f| match self {
+             Self::Stdin => f.write_str("-"),
+             Self::Local(path) => path.user_display().fmt(f),
+             Self::Remote(url) => url.fmt(f),
+diff --git a/crates/uv-console/src/lib.rs b/crates/uv-console/src/lib.rs
+index 660f0fe..7fadfd1 100644
+--- a/crates/uv-console/src/lib.rs
++++ b/crates/uv-console/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(debug_closure_helpers, unsigned_is_multiple_of)]
++
+ use console::{Key, Term, measure_text_width, style};
+ use std::{cmp::Ordering, fmt, iter};
+ 
+diff --git a/crates/uv-dev/src/lib.rs b/crates/uv-dev/src/lib.rs
+index 72987fa..a454514 100644
+--- a/crates/uv-dev/src/lib.rs
++++ b/crates/uv-dev/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::env;
+ 
+ use anyhow::Result;
+diff --git a/crates/uv-dirs/src/lib.rs b/crates/uv-dirs/src/lib.rs
+index 96efde0..c7e0ffe 100644
+--- a/crates/uv-dirs/src/lib.rs
++++ b/crates/uv-dirs/src/lib.rs
+@@ -161,31 +161,29 @@ fn locate_system_config_windows(system_drive: impl AsRef<Path>) -> Option<PathBu
+ ///
+ /// On Windows, uses `%SYSTEMDRIVE%\ProgramData\uv\uv.toml`.
+ pub fn system_config_file() -> Option<PathBuf> {
+-    cfg_select! {
+-        windows => {
+-            env::var(EnvVars::SYSTEMDRIVE)
+-                .ok()
+-                .and_then(|system_drive| locate_system_config_windows(format!("{system_drive}\\")))
+-        },
+-        _ => {
+-            if let Some(path) =
+-                locate_system_config_xdg(env::var(EnvVars::XDG_CONFIG_DIRS).ok().as_deref())
+-            {
+-                return Some(path);
+-            }
++    #[cfg(windows)]
++    {
++        env::var(EnvVars::SYSTEMDRIVE)
++            .ok()
++            .and_then(|system_drive| locate_system_config_windows(format!("{system_drive}\\")))
++    }
++    #[cfg(not(windows))]
++    {
++        if let Some(path) =
++            locate_system_config_xdg(env::var(EnvVars::XDG_CONFIG_DIRS).ok().as_deref())
++        {
++            return Some(path);
++        }
+ 
+-            // Fallback to `/etc/uv/uv.toml` if `XDG_CONFIG_DIRS` is not set or no valid
+-            // path is found.
+-            let candidate = Path::new("/etc/uv/uv.toml");
+-            match candidate.try_exists() {
+-                Ok(true) => Some(candidate.to_path_buf()),
+-                Ok(false) => None,
+-                Err(err) => {
+-                    tracing::warn!("Failed to query system configuration file: {err}");
+-                    None
+-                }
++        let candidate = Path::new("/etc/uv/uv.toml");
++        match candidate.try_exists() {
++            Ok(true) => Some(candidate.to_path_buf()),
++            Ok(false) => None,
++            Err(err) => {
++                tracing::warn!("Failed to query system configuration file: {err}");
++                None
+             }
+-        },
++        }
+     }
+ }
+ 
+diff --git a/crates/uv-distribution-filename/src/lib.rs b/crates/uv-distribution-filename/src/lib.rs
+index e33274c..439db28 100644
+--- a/crates/uv-distribution-filename/src/lib.rs
++++ b/crates/uv-distribution-filename/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::fmt::{Display, Formatter};
+ use std::str::FromStr;
+ 
+diff --git a/crates/uv-distribution-types/src/lib.rs b/crates/uv-distribution-types/src/lib.rs
+index e8f8a4f..a8e7cb3 100644
+--- a/crates/uv-distribution-types/src/lib.rs
++++ b/crates/uv-distribution-types/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard)]
++
+ //! ## Type hierarchy
+ //!
+ //! When we receive the requirements from `pip sync`, we check which requirements already fulfilled
+diff --git a/crates/uv-distribution-types/src/minimum_libc_version.rs b/crates/uv-distribution-types/src/minimum_libc_version.rs
+index 295104b..29bd4b5 100644
+--- a/crates/uv-distribution-types/src/minimum_libc_version.rs
++++ b/crates/uv-distribution-types/src/minimum_libc_version.rs
+@@ -50,7 +50,8 @@ impl MinimumLibcVersion {
+             | PlatformTag::Solaris { .. }
+             | PlatformTag::Pyodide { .. }
+             | PlatformTag::PyEmscripten { .. }
+-            | PlatformTag::Ios { .. } => return [true; 2],
++            | PlatformTag::Ios { .. }
++            | PlatformTag::Zos { .. } => return [true; 2],
+         };
+         [
+             self.glibc.is_none_or(|version| glibc <= version),
+diff --git a/crates/uv-distribution/src/lib.rs b/crates/uv-distribution/src/lib.rs
+index 81b6b72..b0a06ae 100644
+--- a/crates/uv-distribution/src/lib.rs
++++ b/crates/uv-distribution/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard)]
++
+ pub use distribution_database::{DistributionDatabase, HttpArchivePointer, PathArchivePointer};
+ pub use download::LocalWheel;
+ pub use error::Error;
+diff --git a/crates/uv-extract/src/lib.rs b/crates/uv-extract/src/lib.rs
+index e1459c3..c4f8da1 100644
+--- a/crates/uv-extract/src/lib.rs
++++ b/crates/uv-extract/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ pub use error::Error;
+ use regex::regex;
+ pub use sync::*;
+diff --git a/crates/uv-fastid/src/lib.rs b/crates/uv-fastid/src/lib.rs
+index 6c847ca..d32d168 100644
+--- a/crates/uv-fastid/src/lib.rs
++++ b/crates/uv-fastid/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(slice_as_array)]
++
+ //! Fast, unique ID generation, with a focus on small string representations.
+ //!
+ //! This crate provides a nanoid-style ID generator, but with IDs of length 16
+diff --git a/crates/uv-fs/src/lib.rs b/crates/uv-fs/src/lib.rs
+index 1978e08..56bb829 100644
+--- a/crates/uv-fs/src/lib.rs
++++ b/crates/uv-fs/src/lib.rs
+@@ -470,14 +470,10 @@ mod windows_tests {
+ /// This function should only be used for files. If targeting a directory, use [`replace_symlink`]
+ /// instead; it will use a junction on Windows, which is more performant.
+ pub fn symlink_or_copy_file(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+-    cfg_select! {
+-        windows => {
+-            fs_err::copy(src.as_ref(), dst.as_ref())?;
+-        },
+-        unix => {
+-            fs_err::os::unix::fs::symlink(src.as_ref(), dst.as_ref())?;
+-        },
+-    }
++    #[cfg(windows)]
++    fs_err::copy(src.as_ref(), dst.as_ref())?;
++    #[cfg(unix)]
++    fs_err::os::unix::fs::symlink(src.as_ref(), dst.as_ref())?;
+ 
+     Ok(())
+ }
+@@ -896,6 +892,7 @@ pub fn is_virtualenv_base(path: impl AsRef<Path>) -> bool {
+ }
+ 
+ /// Whether the error is due to a lock being held.
++#[cfg(not(target_os = "zos"))]
+ fn is_known_already_locked_error(err: &std::fs::TryLockError) -> bool {
+     match err {
+         std::fs::TryLockError::WouldBlock => true,
+@@ -909,6 +906,11 @@ fn is_known_already_locked_error(err: &std::fs::TryLockError) -> bool {
+     }
+ }
+ 
++#[cfg(target_os = "zos")]
++fn is_known_already_locked_error(err: &locked_file::ZosTryLockError) -> bool {
++    matches!(err, locked_file::ZosTryLockError::WouldBlock)
++}
++
+ /// An asynchronous reader that reports progress as bytes are read.
+ #[cfg(feature = "tokio")]
+ pub struct ProgressReader<Reader: tokio::io::AsyncRead + Unpin, Callback: Fn(usize) + Unpin> {
+diff --git a/crates/uv-fs/src/locked_file.rs b/crates/uv-fs/src/locked_file.rs
+index fb7db83..a7e98a5 100644
+--- a/crates/uv-fs/src/locked_file.rs
++++ b/crates/uv-fs/src/locked_file.rs
+@@ -16,7 +16,7 @@ use crate::{Simplified, is_known_already_locked_error};
+ 
+ /// Parsed value of `UV_LOCK_TIMEOUT`, with a default of 5 min.
+ static LOCK_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| {
+-    let default_timeout = Duration::from_mins(5);
++    let default_timeout = Duration::from_secs(5 * 60);
+     let Some(lock_timeout) = env::var_os(EnvVars::UV_LOCK_TIMEOUT) else {
+         return default_timeout;
+     };
+@@ -97,6 +97,13 @@ pub enum LockedFileMode {
+     Exclusive,
+ }
+ 
++#[cfg(target_os = "zos")]
++#[derive(Debug)]
++pub(crate) enum ZosTryLockError {
++    WouldBlock,
++    Error(io::Error),
++}
++
+ impl LockedFileMode {
+     /// Try to lock the file and return an error if the lock is already acquired by another process
+     /// and cannot be acquired immediately.
+@@ -105,7 +112,7 @@ impl LockedFileMode {
+     /// (see [rust-lang/rust#148325]), so we use [`rustix::fs::flock`] directly.
+     ///
+     /// [rust-lang/rust#148325]: https://github.com/rust-lang/rust/issues/148325
+-    #[cfg(not(target_os = "android"))]
++    #[cfg(not(any(target_os = "android", target_os = "zos")))]
+     fn try_lock(self, file: &fs_err::File) -> Result<(), std::fs::TryLockError> {
+         match self {
+             Self::Exclusive => file.try_lock()?,
+@@ -139,13 +146,29 @@ impl LockedFileMode {
+         })
+     }
+ 
++    #[cfg(target_os = "zos")]
++    fn try_lock(self, file: &fs_err::File) -> Result<(), ZosTryLockError> {
++        use std::os::fd::AsFd;
++        let operation = match self {
++            Self::Exclusive => rustix::fs::FlockOperation::NonBlockingLockExclusive,
++            Self::Shared => rustix::fs::FlockOperation::NonBlockingLockShared,
++        };
++        rustix::fs::flock(file.as_fd(), operation).map_err(|errno| {
++            if errno == rustix::io::Errno::WOULDBLOCK {
++                ZosTryLockError::WouldBlock
++            } else {
++                ZosTryLockError::Error(io::Error::from_raw_os_error(errno.raw_os_error()))
++            }
++        })
++    }
++
+     /// Lock the file, blocking until the lock becomes available if necessary.
+     ///
+     /// On Android, [`std::fs::File::lock`] is not supported
+     /// (see [rust-lang/rust#148325]), so we use [`rustix::fs::flock`] directly.
+     ///
+     /// [rust-lang/rust#148325]: https://github.com/rust-lang/rust/issues/148325
+-    #[cfg(not(target_os = "android"))]
++    #[cfg(not(any(target_os = "android", target_os = "zos")))]
+     fn lock(self, file: &fs_err::File) -> Result<(), io::Error> {
+         match self {
+             Self::Exclusive => file.lock()?,
+@@ -161,7 +184,7 @@ impl LockedFileMode {
+     /// (see [rust-lang/rust#148325]).
+     ///
+     /// [rust-lang/rust#148325]: https://github.com/rust-lang/rust/issues/148325
+-    #[cfg(target_os = "android")]
++    #[cfg(any(target_os = "android", target_os = "zos"))]
+     fn lock(self, file: &fs_err::File) -> Result<(), io::Error> {
+         use std::os::fd::AsFd;
+ 
+@@ -400,7 +423,7 @@ impl LockedFile {
+     /// (see [rust-lang/rust#148325]), so we use [`rustix::fs::flock`] directly.
+     ///
+     /// [rust-lang/rust#148325]: https://github.com/rust-lang/rust/issues/148325
+-    #[cfg(not(target_os = "android"))]
++    #[cfg(not(any(target_os = "android", target_os = "zos")))]
+     fn unlock(&self) -> Result<(), io::Error> {
+         self.0.unlock()
+     }
+@@ -412,7 +435,7 @@ impl LockedFile {
+     /// (see [rust-lang/rust#148325]).
+     ///
+     /// [rust-lang/rust#148325]: https://github.com/rust-lang/rust/issues/148325
+-    #[cfg(target_os = "android")]
++    #[cfg(any(target_os = "android", target_os = "zos"))]
+     fn unlock(&self) -> Result<(), io::Error> {
+         use std::os::fd::AsFd;
+ 
+diff --git a/crates/uv-fs/src/path.rs b/crates/uv-fs/src/path.rs
+index 7f31356..a6c5e69 100644
+--- a/crates/uv-fs/src/path.rs
++++ b/crates/uv-fs/src/path.rs
+@@ -224,12 +224,11 @@ pub fn is_windows_absolute_path(path: &str) -> bool {
+ /// For example, `./a/../../b` cannot be normalized because it escapes the base directory.
+ pub fn normalize_absolute_path(path: &Path) -> Result<PathBuf, std::io::Error> {
+     let mut components = path.components().peekable();
+-    let mut ret = components
+-        .next_if_map_mut(|component| match component {
+-            Component::Prefix(..) => Some(PathBuf::from(component.as_os_str())),
+-            _ => None,
+-        })
+-        .unwrap_or_default();
++    let mut ret = if matches!(components.peek(), Some(Component::Prefix(..))) {
++        PathBuf::from(components.next().unwrap().as_os_str())
++    } else {
++        PathBuf::new()
++    };
+ 
+     for component in components {
+         match component {
+diff --git a/crates/uv-git-types/src/lib.rs b/crates/uv-git-types/src/lib.rs
+index d307aa9..1d4aa4c 100644
+--- a/crates/uv-git-types/src/lib.rs
++++ b/crates/uv-git-types/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ pub use crate::github::GitHubRepository;
+ pub use crate::oid::{GitOid, OidParseError};
+ pub use crate::reference::GitReference;
+diff --git a/crates/uv-install-wheel/src/lib.rs b/crates/uv-install-wheel/src/lib.rs
+index b67de38..0b18df3 100644
+--- a/crates/uv-install-wheel/src/lib.rs
++++ b/crates/uv-install-wheel/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(os_str_display)]
++
+ //! Takes a wheel and installs it into a venv.
+ 
+ use std::io;
+diff --git a/crates/uv-install-wheel/src/uninstall.rs b/crates/uv-install-wheel/src/uninstall.rs
+index 7bd1e77..fc92b60 100644
+--- a/crates/uv-install-wheel/src/uninstall.rs
++++ b/crates/uv-install-wheel/src/uninstall.rs
+@@ -427,12 +427,11 @@ pub struct Uninstall {
+ /// Source: <https://github.com/rust-lang/cargo/blob/b48c41aedbd69ee3990d62a0e2006edbb506a480/crates/cargo-util/src/paths.rs#L76C1-L109C2>
+ fn normalize_path(path: &Path) -> PathBuf {
+     let mut components = path.components().peekable();
+-    let mut ret = components
+-        .next_if_map_mut(|component| match component {
+-            Component::Prefix(..) => Some(PathBuf::from(component.as_os_str())),
+-            _ => None,
+-        })
+-        .unwrap_or_default();
++    let mut ret = if matches!(components.peek(), Some(Component::Prefix(..))) {
++        PathBuf::from(components.next().unwrap().as_os_str())
++    } else {
++        PathBuf::new()
++    };
+ 
+     for component in components {
+         match component {
+diff --git a/crates/uv-installer/src/lib.rs b/crates/uv-installer/src/lib.rs
+index b42004e..1fa4228 100644
+--- a/crates/uv-installer/src/lib.rs
++++ b/crates/uv-installer/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, duration_constructors)]
++
+ pub use compile::{CompileError, compile_files, compile_tree};
+ pub use installer::{Installer, Reporter as InstallReporter};
+ pub use plan::{IncompatibleWheelError, Plan, Planner};
+diff --git a/crates/uv-lock/src/lib.rs b/crates/uv-lock/src/lib.rs
+index 45cbcf0..ba6f6b3 100644
+--- a/crates/uv-lock/src/lib.rs
++++ b/crates/uv-lock/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, array_windows)]
++
+ //! Parsing, validation, traversal, and export of lockfiles.
+ 
+ mod lock;
+diff --git a/crates/uv-macros/src/lib.rs b/crates/uv-macros/src/lib.rs
+index f699faf..5c5e11a 100644
+--- a/crates/uv-macros/src/lib.rs
++++ b/crates/uv-macros/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ mod options_metadata;
+ 
+ use proc_macro::TokenStream;
+diff --git a/crates/uv-pep440/src/lib.rs b/crates/uv-pep440/src/lib.rs
+index 205edfd..95e4f9d 100644
+--- a/crates/uv-pep440/src/lib.rs
++++ b/crates/uv-pep440/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, debug_closure_helpers)]
++
+ //! A library for python version numbers and specifiers, implementing
+ //! [PEP 440](https://peps.python.org/pep-0440)
+ //!
+diff --git a/crates/uv-pep508/src/lib.rs b/crates/uv-pep508/src/lib.rs
+index 500f6a2..87060d7 100644
+--- a/crates/uv-pep508/src/lib.rs
++++ b/crates/uv-pep508/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, debug_closure_helpers)]
++
+ //! A library for [dependency specifiers](https://packaging.python.org/en/latest/specifications/dependency-specifiers/)
+ //! previously known as [PEP 508](https://peps.python.org/pep-0508/)
+ //!
+diff --git a/crates/uv-pep508/src/verbatim_url.rs b/crates/uv-pep508/src/verbatim_url.rs
+index d0e373a..b9c7357 100644
+--- a/crates/uv-pep508/src/verbatim_url.rs
++++ b/crates/uv-pep508/src/verbatim_url.rs
+@@ -430,33 +430,28 @@ impl Pep508Url for VerbatimUrl {
+                 // Ex) `file:///home/ferris/project/scripts/...`, `file://localhost/home/ferris/project/scripts/...`, or `file:../ferris/`
+                 Some(Scheme::File) => {
+                     // Strip the leading slashes, along with the `localhost` host, if present.
+-                    cfg_select! {
+-                        feature = "non-pep508-extensions" => {
+-                            // Transform, e.g., `/C:/Users/ferris/wheel-0.42.0.tar.gz` to `C:\Users\ferris\wheel-0.42.0.tar.gz`.
+-                            let (path, fragment) = path
+-                                .split_once('#')
+-                                .map_or((path, None), |(path, fragment)| (path, Some(fragment)));
+-                            let path = strip_host(path);
+-
+-                            let path = normalize_url_path(path);
+-
+-                            if let Some(working_dir) = working_dir {
+-                                return Ok(Self::from_path(path.as_ref(), working_dir)?
+-                                    .with_url_fragment(fragment)
+-                                    .with_given(url)
+-                                    .with_expanded(vars_expanded));
+-                            }
+-
+-                            Ok(Self::from_absolute_path(path.as_ref())?
++                    #[cfg(feature = "non-pep508-extensions")]
++                    {
++                        let (path, fragment) = path
++                            .split_once('#')
++                            .map_or((path, None), |(path, fragment)| (path, Some(fragment)));
++                        let path = normalize_url_path(strip_host(path));
++                        if let Some(working_dir) = working_dir {
++                            return Ok(Self::from_path(path.as_ref(), working_dir)?
+                                 .with_url_fragment(fragment)
+                                 .with_given(url)
+-                                .with_expanded(vars_expanded))
+-                        },
+-                        _ => {
+-                            Ok(Self::parse_url(expanded)?
+-                                .with_given(url)
+-                                .with_expanded(vars_expanded))
+-                        },
++                                .with_expanded(vars_expanded));
++                        }
++                        Ok(Self::from_absolute_path(path.as_ref())?
++                            .with_url_fragment(fragment)
++                            .with_given(url)
++                            .with_expanded(vars_expanded))
++                    }
++                    #[cfg(not(feature = "non-pep508-extensions"))]
++                    {
++                        Ok(Self::parse_url(expanded)?
++                            .with_given(url)
++                            .with_expanded(vars_expanded))
+                     }
+                 }
+ 
+@@ -468,29 +463,29 @@ impl Pep508Url for VerbatimUrl {
+ 
+                 // Ex) `C:\Users\ferris\wheel-0.42.0.tar.gz`
+                 _ => {
+-                    cfg_select! {
+-                        feature = "non-pep508-extensions" => {
+-                            Ok(
+-                                Self::from_path_with_fragment(expanded.as_ref(), working_dir)?
+-                                    .with_given(url)
+-                                    .with_expanded(vars_expanded),
+-                            )
+-                        },
+-                        _ => Err(Self::Err::NotAUrl(expanded.to_string())),
++                    #[cfg(feature = "non-pep508-extensions")]
++                    {
++                        Ok(Self::from_path_with_fragment(expanded.as_ref(), working_dir)?
++                            .with_given(url)
++                            .with_expanded(vars_expanded))
++                    }
++                    #[cfg(not(feature = "non-pep508-extensions"))]
++                    {
++                        Err(Self::Err::NotAUrl(expanded.to_string()))
+                     }
+                 }
+             }
+         } else {
+             // Ex) `../editable/`
+-            cfg_select! {
+-                feature = "non-pep508-extensions" => {
+-                    Ok(
+-                        Self::from_path_with_fragment(expanded.as_ref(), working_dir)?
+-                            .with_given(url)
+-                            .with_expanded(vars_expanded),
+-                    )
+-                },
+-                _ => Err(Self::Err::NotAUrl(expanded.to_string())),
++            #[cfg(feature = "non-pep508-extensions")]
++            {
++                Ok(Self::from_path_with_fragment(expanded.as_ref(), working_dir)?
++                    .with_given(url)
++                    .with_expanded(vars_expanded))
++            }
++            #[cfg(not(feature = "non-pep508-extensions"))]
++            {
++                Err(Self::Err::NotAUrl(expanded.to_string()))
+             }
+         }
+     }
+diff --git a/crates/uv-platform-tags/src/lib.rs b/crates/uv-platform-tags/src/lib.rs
+index 48bd656..48a1185 100644
+--- a/crates/uv-platform-tags/src/lib.rs
++++ b/crates/uv-platform-tags/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ pub use abi_tag::{AbiTag, CPythonAbiVariants, ParseAbiTagError};
+ pub use language_tag::{LanguageTag, ParseLanguageTagError};
+ pub use libc_version::LibcVersion;
+diff --git a/crates/uv-platform-tags/src/platform.rs b/crates/uv-platform-tags/src/platform.rs
+index d4f3d9d..fb2ea12 100644
+--- a/crates/uv-platform-tags/src/platform.rs
++++ b/crates/uv-platform-tags/src/platform.rs
+@@ -65,6 +65,7 @@ impl Platform {
+             Os::Haiku { .. } => "Haiku",
+             Os::Android { .. } => "Android",
+             Os::Ios { .. } => "iOS",
++            Os::Zos { .. } => "z/OS",
+         };
+         format!("{os} {}", self.arch())
+     }
+@@ -122,6 +123,9 @@ pub enum Os {
+         minor: u16,
+         simulator: bool,
+     },
++    Zos {
++        release: String,
++    },
+ }
+ 
+ impl fmt::Display for Os {
+@@ -141,6 +145,7 @@ impl fmt::Display for Os {
+             Self::Pyodide { .. } => write!(f, "pyodide"),
+             Self::PyEmscripten { .. } => write!(f, "pyemscripten"),
+             Self::Ios { .. } => write!(f, "ios"),
++            Self::Zos { .. } => write!(f, "zos"),
+         }
+     }
+ }
+diff --git a/crates/uv-platform-tags/src/platform_tag.rs b/crates/uv-platform-tags/src/platform_tag.rs
+index c0ff71a..13f6692 100644
+--- a/crates/uv-platform-tags/src/platform_tag.rs
++++ b/crates/uv-platform-tags/src/platform_tag.rs
+@@ -114,6 +114,8 @@ pub enum PlatformTag {
+     Solaris { release_arch: ReleaseArch },
+     /// Ex) `pyodide_2024_0_wasm32`
+     Pyodide { major: u16, minor: u16 },
++    /// Ex) `os390_29_00_8561`
++    Zos { release_arch: SmallString },
+     /// Ex) `pyemscripten_2026_0_wasm32`
+     PyEmscripten { major: u16, minor: u16 },
+     /// Ex) `ios_13_0_arm64_iphoneos` / `ios_13_0_arm64_iphonesimulator`
+@@ -152,6 +154,7 @@ impl PlatformTag {
+             Self::Illumos { .. } => Some("Illumos"),
+             Self::Solaris { .. } => Some("Solaris"),
+             Self::Pyodide { .. } => Some("Pyodide"),
++            Self::Zos { .. } => Some("z/OS"),
+             Self::PyEmscripten { .. } => Some("Emscripten"),
+             Self::Ios { .. } => Some("iOS"),
+         }
+@@ -470,6 +473,7 @@ impl std::fmt::Display for PlatformTag {
+             Self::Illumos { release_arch } => write!(f, "illumos_{release_arch}"),
+             Self::Solaris { release_arch } => write!(f, "solaris_{release_arch}_64bit"),
+             Self::Pyodide { major, minor } => write!(f, "pyodide_{major}_{minor}_wasm32"),
++            Self::Zos { release_arch } => write!(f, "os390_{release_arch}"),
+             Self::PyEmscripten { major, minor } => {
+                 write!(f, "pyemscripten_{major}_{minor}_wasm32")
+             }
+@@ -950,6 +954,19 @@ impl FromStr for PlatformTag {
+             });
+         }
+ 
++        if let Some(rest) = s.strip_prefix("os390_") {
++            // Ex) os390_29_00_8561
++            if rest.is_empty() {
++                return Err(ParsePlatformTagError::InvalidFormat {
++                    platform: "zos",
++                    tag: s.to_string(),
++                });
++            }
++            return Ok(Self::Zos {
++                release_arch: SmallString::from(rest),
++            });
++        }
++
+         Err(ParsePlatformTagError::UnknownFormat(s.to_string()))
+     }
+ }
+diff --git a/crates/uv-platform-tags/src/tags.rs b/crates/uv-platform-tags/src/tags.rs
+index 48c780d..de098f9 100644
+--- a/crates/uv-platform-tags/src/tags.rs
++++ b/crates/uv-platform-tags/src/tags.rs
+@@ -5,6 +5,7 @@ use std::sync::Arc;
+ use std::{cmp, num::NonZeroU32};
+ 
+ use rustc_hash::FxHashMap;
++use uv_small_str::SmallString;
+ 
+ use crate::abi_tag::CPythonAbiVariants;
+ use crate::{AbiTag, Arch, LanguageTag, Os, Platform, PlatformError, PlatformTag, ReleaseArch};
+@@ -899,6 +900,14 @@ fn compatible_tags(platform: &Platform) -> Result<Vec<PlatformTag>, PlatformErro
+ 
+             platform_tags
+         }
++        (Os::Zos { release }, _arch) => {
++            // z/OS platform tag format: "os390_<release>" (no arch suffix)
++            // e.g. release "29.00-8561" -> "os390_29_00_8561"
++            let release = release.replace(['.', '-'], "_");
++            vec![PlatformTag::Zos {
++                release_arch: SmallString::from(release),
++            }]
++        }
+         _ => {
+             return Err(PlatformError::OsVersionDetectionError(format!(
+                 "Unsupported operating system and architecture combination: {os} {arch}"
+diff --git a/crates/uv-platform/src/host.rs b/crates/uv-platform/src/host.rs
+index bd1d84f..4134ceb 100644
+--- a/crates/uv-platform/src/host.rs
++++ b/crates/uv-platform/src/host.rs
+@@ -20,16 +20,18 @@ impl OsType {
+     ///
+     /// Returns `None` on unsupported platforms.
+     pub fn from_env() -> Option<Self> {
+-        cfg_select! {
+-            target_os = "linux" => {
+-                let uname = rustix::system::uname();
+-                let os_type = uname.sysname().to_str().ok()?;
+-                Some(Self::Linux(os_type.to_string()))
+-            },
+-            target_os = "macos" => Some(Self::Darwin),
+-            target_os = "windows" => Some(Self::Windows),
+-            _ => None,
++        #[cfg(target_os = "linux")]
++        {
++            let uname = rustix::system::uname();
++            let os_type = uname.sysname().to_str().ok()?;
++            Some(Self::Linux(os_type.to_string()))
+         }
++        #[cfg(target_os = "macos")]
++        { Some(Self::Darwin) }
++        #[cfg(target_os = "windows")]
++        { Some(Self::Windows) }
++        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
++        { None }
+     }
+ }
+ 
+@@ -62,23 +64,24 @@ impl OsRelease {
+     ///
+     /// Returns `None` on unsupported platforms or if the release cannot be read.
+     pub fn from_env() -> Option<Self> {
+-        cfg_select! {
+-            unix => {
+-                let uname = rustix::system::uname();
+-                let release = uname.release().to_str().ok()?;
+-                Some(Self::Unix(release.to_string()))
+-            },
+-            windows => {
+-                let os_version = windows_version::OsVersion::current();
+-                Some(Self::Windows {
+-                    major: os_version.major,
+-                    minor: os_version.minor,
+-                    build: os_version.build,
+-                    revision: windows_version::revision(),
+-                })
+-            },
+-            _ => None,
++        #[cfg(unix)]
++        {
++            let uname = rustix::system::uname();
++            let release = uname.release().to_str().ok()?;
++            Some(Self::Unix(release.to_string()))
+         }
++        #[cfg(windows)]
++        {
++            let os_version = windows_version::OsVersion::current();
++            Some(Self::Windows {
++                major: os_version.major,
++                minor: os_version.minor,
++                build: os_version.build,
++                revision: windows_version::revision(),
++            })
++        }
++        #[cfg(not(any(unix, windows)))]
++        { None }
+     }
+ }
+ 
+@@ -114,15 +117,15 @@ impl LinuxOsRelease {
+     ///
+     /// Returns `None` on non-Linux platforms or if the file cannot be read.
+     pub fn from_env() -> Option<Self> {
+-        cfg_select! {
+-            target_os = "linux" => {
+-                let content = fs_err::read_to_string("/etc/os-release")
+-                    .or_else(|_| fs_err::read_to_string("/usr/lib/os-release"))
+-                    .ok()?;
+-                Some(content.parse().unwrap())
+-            },
+-            _ => None,
++        #[cfg(target_os = "linux")]
++        {
++            let content = fs_err::read_to_string("/etc/os-release")
++                .or_else(|_| fs_err::read_to_string("/usr/lib/os-release"))
++                .ok()?;
++            Some(content.parse().unwrap())
+         }
++        #[cfg(not(target_os = "linux"))]
++        { None }
+     }
+ }
+ 
+diff --git a/crates/uv-platform/src/lib.rs b/crates/uv-platform/src/lib.rs
+index 964928e..8830601 100644
+--- a/crates/uv-platform/src/lib.rs
++++ b/crates/uv-platform/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard)]
++
+ //! Platform detection for operating system, architecture, and libc.
+ 
+ use std::borrow::Cow;
+diff --git a/crates/uv-platform/src/os.rs b/crates/uv-platform/src/os.rs
+index d714d86..4af7350 100644
+--- a/crates/uv-platform/src/os.rs
++++ b/crates/uv-platform/src/os.rs
+@@ -107,6 +107,9 @@ impl From<&uv_platform_tags::Os> for Os {
+             uv_platform_tags::Os::Ios { .. } => {
+                 Self::new(target_lexicon::OperatingSystem::IOS(None))
+             }
++            uv_platform_tags::Os::Zos { .. } => {
++                Self::new(target_lexicon::OperatingSystem::Zos)
++            }
+         }
+     }
+ }
+diff --git a/crates/uv-publish/src/lib.rs b/crates/uv-publish/src/lib.rs
+index 3b5ca1d..dfb33b3 100644
+--- a/crates/uv-publish/src/lib.rs
++++ b/crates/uv-publish/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ mod trusted_publishing;
+ 
+ use std::borrow::Cow;
+diff --git a/crates/uv-pypi-types/src/lib.rs b/crates/uv-pypi-types/src/lib.rs
+index c0ca651..5ee71c1 100644
+--- a/crates/uv-pypi-types/src/lib.rs
++++ b/crates/uv-pypi-types/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, slice_as_chunks)]
++
+ pub use base_url::*;
+ pub use build::*;
+ pub use conflicts::*;
+diff --git a/crates/uv-python/Cargo.toml b/crates/uv-python/Cargo.toml
+index 2273163..f5533e0 100644
+--- a/crates/uv-python/Cargo.toml
++++ b/crates/uv-python/Cargo.toml
+@@ -70,6 +70,9 @@ which = { workspace = true }
+ rayon = { workspace = true }
+ zstd = { workspace = true }
+ 
++[target.'cfg(target_os = "zos")'.dependencies]
++libc = { workspace = true }
++
+ [target.'cfg(target_os = "windows")'.dependencies]
+ windows-registry = { workspace = true }
+ windows = { workspace = true }
+diff --git a/crates/uv-python/python/get_interpreter_info.py b/crates/uv-python/python/get_interpreter_info.py
+index f45580b..8384d26 100644
+--- a/crates/uv-python/python/get_interpreter_info.py
++++ b/crates/uv-python/python/get_interpreter_info.py
+@@ -596,6 +596,25 @@ def get_operating_system_and_architecture():
+             "name": operating_system,
+             "release": version,
+         }
++    elif operating_system in ("os390", "zos"):
++        # z/OS: sysconfig.get_platform() returns either:
++        #   "os390-<version>-<build>"  (Python 3.12, 3.13)
++        #   "zos"                      (Python 3.14+, no version component)
++        # In both cases the architecture is always s390x and we want
++        # release = "<version>-<build>" (e.g. "29.00-8561") so the wheel
++        # platform tag becomes "os390_29_00_8561" matching installed wheels.
++        architecture = "s390x"
++        if not version_arch:
++            # Python 3.14+ reports just "zos" — reconstruct from platform module
++            release = platform.release()   # "29.00"
++            machine = platform.machine()   # "8561"
++            release_str = f"{release}-{machine}" if (release and machine) else ""
++        else:
++            release_str = version_arch
++        operating_system = {
++            "name": "zos",
++            "release": release_str,
++        }
+     else:
+         print(
+             json.dumps(
+diff --git a/crates/uv-python/src/interpreter.rs b/crates/uv-python/src/interpreter.rs
+index 73cd43b..90ab63f 100644
+--- a/crates/uv-python/src/interpreter.rs
++++ b/crates/uv-python/src/interpreter.rs
+@@ -971,6 +971,39 @@ struct InterpreterInfo {
+     debug_enabled: bool,
+ }
+ 
++#[cfg(target_os = "zos")]
++fn decode_ebcdic_subprocess_output(input: &[u8]) -> Option<Vec<u8>> {
++    use std::ffi::CString;
++
++    let tocode = CString::new("UTF-8").ok()?;
++    let fromcode = CString::new("IBM-1047").ok()?;
++    let cd = unsafe { libc::iconv_open(tocode.as_ptr(), fromcode.as_ptr()) };
++    if cd as isize == -1 {
++        return None;
++    }
++
++    let mut input_left = input.len();
++    let mut input_ptr = input.as_ptr().cast_mut().cast::<libc::c_char>();
++    let mut output = vec![0u8; input.len().saturating_mul(4).saturating_add(4)];
++    let mut output_left = output.len();
++    let mut output_ptr = output.as_mut_ptr().cast::<libc::c_char>();
++    let result = unsafe {
++        libc::iconv(
++            cd,
++            &mut input_ptr,
++            &mut input_left,
++            &mut output_ptr,
++            &mut output_left,
++        )
++    };
++    unsafe { libc::iconv_close(cd) };
++    if result == usize::MAX {
++        return None;
++    }
++    output.truncate(output.len() - output_left);
++    Some(output)
++}
++
+ impl InterpreterInfo {
+     /// Return the resolved [`InterpreterInfo`] for the given Python executable.
+     fn query(interpreter: &Path, cache: &Cache) -> Result<Self, Error> {
+@@ -1006,7 +1039,7 @@ impl InterpreterInfo {
+         #[cfg(target_os = "macos")]
+         command.env("SYSTEM_VERSION_COMPAT", "0");
+ 
+-        let output = command.output().map_err(|err| {
++        let mut output = command.output().map_err(|err| {
+             match err.kind() {
+                 io::ErrorKind::NotFound => return Error::NotFound(interpreter.to_path_buf()),
+                 io::ErrorKind::PermissionDenied => {
+@@ -1036,6 +1069,16 @@ impl InterpreterInfo {
+             }
+         })?;
+ 
++        #[cfg(target_os = "zos")]
++        {
++            if let Some(stdout) = decode_ebcdic_subprocess_output(&output.stdout) {
++                output.stdout = stdout;
++            }
++            if let Some(stderr) = decode_ebcdic_subprocess_output(&output.stderr) {
++                output.stderr = stderr;
++            }
++        }
++
+         if !output.status.success() {
+             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+ 
+diff --git a/crates/uv-python/src/lib.rs b/crates/uv-python/src/lib.rs
+index b64dc8f..a1c7682 100644
+--- a/crates/uv-python/src/lib.rs
++++ b/crates/uv-python/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Find requested Python interpreters and query interpreters for information.
+ use thiserror::Error;
+ 
+diff --git a/crates/uv-python/src/managed.rs b/crates/uv-python/src/managed.rs
+index cb6de81..a02f344 100644
+--- a/crates/uv-python/src/managed.rs
++++ b/crates/uv-python/src/managed.rs
+@@ -842,23 +842,21 @@ impl PythonMinorVersionLink {
+                 .is_ok_and(|target| verbatim_path(&target) == verbatim_path(&self.target_directory))
+         };
+ 
+-        cfg_select! {
+-            unix => {
+-                self.symlink_directory
+-                    .symlink_metadata()
+-                    .is_ok_and(|metadata| metadata.file_type().is_symlink())
+-                    && points_to_target()
+-            },
+-            windows => {
+-                self.symlink_directory
+-                    .symlink_metadata()
+-                    .is_ok_and(|metadata| {
+-                        // Check that this is a reparse point, which indicates this
+-                        // is a symlink or junction.
+-                        (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0) != 0
+-                    })
+-                    && points_to_target()
+-            },
++        #[cfg(unix)]
++        {
++            self.symlink_directory
++                .symlink_metadata()
++                .is_ok_and(|metadata| metadata.file_type().is_symlink())
++                && points_to_target()
++        }
++        #[cfg(windows)]
++        {
++            self.symlink_directory
++                .symlink_metadata()
++                .is_ok_and(|metadata| {
++                    (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0) != 0
++                })
++                && points_to_target()
+         }
+     }
+ }
+diff --git a/crates/uv-requirements/src/lib.rs b/crates/uv-requirements/src/lib.rs
+index 07ae40d..4ced1a7 100644
+--- a/crates/uv-requirements/src/lib.rs
++++ b/crates/uv-requirements/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ pub use crate::extras::*;
+ pub use crate::lookahead::*;
+ pub use crate::source_tree::*;
+diff --git a/crates/uv-resolver/src/lib.rs b/crates/uv-resolver/src/lib.rs
+index 33f8247..3e1d6f4 100644
+--- a/crates/uv-resolver/src/lib.rs
++++ b/crates/uv-resolver/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, debug_closure_helpers)]
++
+ pub use error::{ErrorTree, NoSolutionError, NoSolutionHeader, ResolveError};
+ pub use exclusions::Exclusions;
+ pub use flat_index::{FlatDistributions, FlatIndex};
+diff --git a/crates/uv-settings/src/lib.rs b/crates/uv-settings/src/lib.rs
+index 2f4c115..e477a65 100644
+--- a/crates/uv-settings/src/lib.rs
++++ b/crates/uv-settings/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::num::NonZeroUsize;
+ use std::ops::Deref;
+ use std::path::{Path, PathBuf};
+diff --git a/crates/uv-shell/src/lib.rs b/crates/uv-shell/src/lib.rs
+index fa9049e..00cd0ab 100644
+--- a/crates/uv-shell/src/lib.rs
++++ b/crates/uv-shell/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(path_add_extension)]
++
+ mod runnable;
+ mod shlex;
+ #[cfg(windows)]
+diff --git a/crates/uv-test/src/lib.rs b/crates/uv-test/src/lib.rs
+index de3afce..9a480c0 100755
+--- a/crates/uv-test/src/lib.rs
++++ b/crates/uv-test/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ // The `unreachable_pub` is to silence false positives in RustRover.
+ #![allow(dead_code, unreachable_pub)]
+ 
+diff --git a/crates/uv-tool/src/tool.rs b/crates/uv-tool/src/tool.rs
+index 234c0d8..208c37a 100644
+--- a/crates/uv-tool/src/tool.rs
++++ b/crates/uv-tool/src/tool.rs
+@@ -118,26 +118,26 @@ pub struct ToolEntrypoint {
+ 
+ impl Display for ToolEntrypoint {
+     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+-        cfg_select! {
+-            windows => {
+-                write!(
+-                    f,
+-                    "{} ({})",
+-                    self.name,
+-                    self.install_path
+-                        .simplified_display()
+-                        .to_string()
+-                        .replace('/', "\\")
+-                )
+-            },
+-            unix => {
+-                write!(
+-                    f,
+-                    "{} ({})",
+-                    self.name,
+-                    self.install_path.simplified_display()
+-                )
+-            },
++        #[cfg(windows)]
++        {
++            write!(
++                f,
++                "{} ({})",
++                self.name,
++                self.install_path
++                    .simplified_display()
++                    .to_string()
++                    .replace('/', "\\")
++            )
++        }
++        #[cfg(unix)]
++        {
++            write!(
++                f,
++                "{} ({})",
++                self.name,
++                self.install_path.simplified_display()
++            )
+         }
+     }
+ }
+diff --git a/crates/uv-torch/src/backend.rs b/crates/uv-torch/src/backend.rs
+index 5360588..9711941 100644
+--- a/crates/uv-torch/src/backend.rs
++++ b/crates/uv-torch/src/backend.rs
+@@ -404,6 +404,7 @@ impl TorchStrategy {
+                     | Os::Android { .. }
+                     | Os::Pyodide { .. }
+                     | Os::PyEmscripten { .. }
++                    | Os::Zos { .. }
+                     | Os::Ios { .. } => {
+                         Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                     }
+@@ -436,6 +437,7 @@ impl TorchStrategy {
+                 | Os::Android { .. }
+                 | Os::Pyodide { .. }
+                 | Os::PyEmscripten { .. }
++                | Os::Zos { .. }
+                 | Os::Ios { .. } => {
+                     Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                 }
+@@ -455,6 +457,7 @@ impl TorchStrategy {
+                 | Os::Android { .. }
+                 | Os::Pyodide { .. }
+                 | Os::PyEmscripten { .. }
++                | Os::Zos { .. }
+                 | Os::Ios { .. } => {
+                     Either::Right(Either::Left(std::iter::once(TorchBackend::Cpu.index_url())))
+                 }
+diff --git a/crates/uv-types/src/lib.rs b/crates/uv-types/src/lib.rs
+index ea28c0f..9754dd4 100644
+--- a/crates/uv-types/src/lib.rs
++++ b/crates/uv-types/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ //! Fundamental types shared across uv crates.
+ pub use builds::*;
+ pub use downloads::*;
+diff --git a/crates/uv-virtualenv/src/lib.rs b/crates/uv-virtualenv/src/lib.rs
+index df48012..8b27c11 100644
+--- a/crates/uv-virtualenv/src/lib.rs
++++ b/crates/uv-virtualenv/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::io;
+ use std::path::{Path, PathBuf};
+ 
+diff --git a/crates/uv-warnings/src/lib.rs b/crates/uv-warnings/src/lib.rs
+index 3e00d01..ca7b095 100644
+--- a/crates/uv-warnings/src/lib.rs
++++ b/crates/uv-warnings/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains)]
++
+ use std::error::Error;
+ use std::fmt;
+ use std::sync::atomic::AtomicBool;
+diff --git a/crates/uv-workspace/src/lib.rs b/crates/uv-workspace/src/lib.rs
+index 730ad4b..4e4527e 100644
+--- a/crates/uv-workspace/src/lib.rs
++++ b/crates/uv-workspace/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard, assert_matches, array_windows)]
++
+ pub use workspace::{
+     DefaultGroupsError, DiscoveryOptions, Editability, MemberDiscovery,
+     ProjectEnvironmentSelection, ProjectWorkspace, RequiresPythonDeclaration,
+diff --git a/crates/uv-workspace/src/workspace.rs b/crates/uv-workspace/src/workspace.rs
+index 09ee75d..2be24cb 100644
+--- a/crates/uv-workspace/src/workspace.rs
++++ b/crates/uv-workspace/src/workspace.rs
+@@ -1,6 +1,6 @@
+ //! Resolve the current [`ProjectWorkspace`] or [`Workspace`].
+ 
+-use std::assert_matches;
++use std::assert_matches::assert_matches;
+ use std::borrow::Cow;
+ use std::collections::{BTreeMap, BTreeSet};
+ use std::error::Error;
+diff --git a/crates/uv/src/bin/uvx.rs b/crates/uv/src/bin/uvx.rs
+index 074817b..c112322 100644
+--- a/crates/uv/src/bin/uvx.rs
++++ b/crates/uv/src/bin/uvx.rs
+@@ -7,13 +7,15 @@ use std::{
+ 
+ /// Spawns a command exec style.
+ fn exec_spawn(cmd: &mut Command) -> std::io::Result<Infallible> {
+-    cfg_select! {
+-        unix => {
+-            use std::os::unix::process::CommandExt;
+-            let err = cmd.exec();
+-            Err(err)
+-        },
+-        windows => uv_windows::spawn_child(cmd, false),
++    #[cfg(unix)]
++    {
++        use std::os::unix::process::CommandExt;
++        let err = cmd.exec();
++        Err(err)
++    }
++    #[cfg(windows)]
++    {
++        uv_windows::spawn_child(cmd, false)
+     }
+ }
+ 
+diff --git a/crates/uv/src/commands/project/run.rs b/crates/uv/src/commands/project/run.rs
+index 4a0d872..21f4a7b 100644
+--- a/crates/uv/src/commands/project/run.rs
++++ b/crates/uv/src/commands/project/run.rs
+@@ -1776,15 +1776,12 @@ impl RunCommand {
+                 let mut process = Command::new(interpreter.sys_executable());
+                 process.arg("-c");
+ 
+-                cfg_select! {
+-                    unix => {
+-                        process.arg(OsString::from_vec(script.clone()));
+-                    },
+-                    _ => {
+-                        let script =
+-                            String::from_utf8(script.clone()).expect("script is valid UTF-8");
+-                        process.arg(script);
+-                    },
++                #[cfg(unix)]
++                process.arg(OsString::from_vec(script.clone()));
++                #[cfg(not(unix))]
++                {
++                    let script = String::from_utf8(script.clone()).expect("script is valid UTF-8");
++                    process.arg(script);
+                 }
+                 process.args(args);
+ 
+@@ -1807,15 +1804,12 @@ impl RunCommand {
+                 let mut process = Command::new(&pythonw_executable);
+                 process.arg("-c");
+ 
+-                cfg_select! {
+-                    unix => {
+-                        process.arg(OsString::from_vec(script.clone()));
+-                    },
+-                    _ => {
+-                        let script =
+-                            String::from_utf8(script.clone()).expect("script is valid UTF-8");
+-                        process.arg(script);
+-                    },
++                #[cfg(unix)]
++                process.arg(OsString::from_vec(script.clone()));
++                #[cfg(not(unix))]
++                {
++                    let script = String::from_utf8(script.clone()).expect("script is valid UTF-8");
++                    process.arg(script);
+                 }
+                 process.args(args);
+ 
+diff --git a/crates/uv/src/lib.rs b/crates/uv/src/lib.rs
+index 1cab1fa..eca242b 100644
+--- a/crates/uv/src/lib.rs
++++ b/crates/uv/src/lib.rs
+@@ -1,3 +1,5 @@
++#![feature(let_chains, if_let_guard, array_windows)]
++
+ #![deny(clippy::print_stdout, clippy::print_stderr)]
+ 
+ use std::borrow::Cow;

@@ -1,0 +1,7 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![feature(let_chains)]
+ //! Format-neutral, asynchronous archive construction and extraction.
+ //!
+ //! Archive formats implement [`ArchiveBuilder`] and call

@@ -1,0 +1,7 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++#![feature(let_chains, proc_macro_span, integer_sign_cast)]
+ #![allow(
+     clippy::missing_const_for_fn,
+     clippy::std_instead_of_core,

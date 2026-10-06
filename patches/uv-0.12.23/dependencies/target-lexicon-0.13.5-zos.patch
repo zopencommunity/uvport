@@ -1,0 +1,38 @@
+--- a/src/targets.rs
++++ b/src/targets.rs
+@@ -744,6 +744,7 @@
+     WasiP2,
+     WatchOS(Option<DeploymentTarget>),
+     Windows,
++    Zos,
+     /// An alternate name for [visionOS][Self::VisionOS].
+     XROS(Option<DeploymentTarget>),
+ }
+@@ -806,6 +807,7 @@
+             WasiP2 => Cow::Borrowed("wasip2"),
+             WatchOS(deployment_target) => darwin_version("watchos", deployment_target),
+             Windows => Cow::Borrowed("windows"),
++            Zos => Cow::Borrowed("zos"),
+             XROS(deployment_target) => darwin_version("xros", deployment_target),
+         }
+     }
+@@ -1654,6 +1656,7 @@
+             "wasip1" => WasiP1,
+             "wasip2" => WasiP2,
+             "windows" => Windows,
++            "zos" => Zos,
+             "espidf" => Espidf,
+             _ => return Err(()),
+         })
+--- a/src/triple.rs
++++ b/src/triple.rs
+@@ -139,7 +139,8 @@
+             | OperatingSystem::Netbsd
+             | OperatingSystem::Openbsd
+             | OperatingSystem::Redox
+-            | OperatingSystem::Solaris => CallingConvention::SystemV,
++            | OperatingSystem::Solaris
++            | OperatingSystem::Zos => CallingConvention::SystemV,
+             OperatingSystem::Windows => CallingConvention::WindowsFastcall,
+             OperatingSystem::Nebulet
+             | OperatingSystem::Emscripten

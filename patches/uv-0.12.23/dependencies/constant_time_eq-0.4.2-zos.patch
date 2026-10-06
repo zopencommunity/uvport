@@ -1,0 +1,18 @@
+--- a/src/generic.rs
++++ b/src/generic.rs
+@@ -52,6 +52,7 @@
+ /// Hides a value from the optimizer.
+ #[cfg(all(
+     not(miri),
++    not(target_os = "zos"),
+     any(
+         target_arch = "x86",
+         target_arch = "x86_64",
+@@ -77,6 +78,7 @@
+ /// Attempts to hide a value from the optimizer.
+ #[cfg(any(
+     miri,
++    target_os = "zos",
+     not(any(
+         target_arch = "x86",
+         target_arch = "x86_64",
