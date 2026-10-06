@@ -100,14 +100,11 @@ zopen_get_version() {
 # Cross-compilation infrastructure:
 #   https://github.ibm.com/compiler/rust-scripts  branch: itodorov/zos-cross-compile-setup
 # All patch sources: https://github.com/zopencommunity/uvport/tree/master/patches
-# STABLE_uvport_2, not _1. The two are byte-for-byte different despite having
-# the same size; _2 carries the z/OS platform patch that lets uv accept Python
-# 3.14. Verified by running both: _1 fails at "Unknown operating system: `zos`",
-# _2 creates the environment and installs.
-#
-# Pinned to a specific release rather than "latest" so a build is reproducible,
-# which means this line has to be updated by hand whenever a new binary is cut.
-UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/STABLE_uvport_2/uv-0.8.13-zos"
+# Pinned to a specific source-version release so builds are reproducible.
+# uvx is a distinct upstream binary: it locates the sibling uv executable and
+# invokes `uv tool uvx`; it must not be implemented as a symlink to uv.
+UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv"
+UVX_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx"
 
 zopen_init() {
   # -f matters: without it a 404 or an expired release leaves curl's HTML error
@@ -126,9 +123,19 @@ zopen_init() {
     printError "Downloaded uv is ${_uv_bytes} bytes, far short of the expected ~155 MB; treating as a truncated download"
   fi
 
+  if ! curl -fL --retry 3 -o uvx "${UVX_BINARY_URL}"; then
+    printError "Could not download the uvx binary from ${UVX_BINARY_URL}"
+  fi
+  _uvx_bytes=$(ls -l uvx | awk '{print $5}')
+  if [ "${_uvx_bytes:-0}" -lt 10000000 ]; then
+    printError "Downloaded uvx is ${_uvx_bytes} bytes, far short of the expected ~24 MB; treating as a truncated download"
+  fi
+
   chtag -b ./uv
-  chmod +x ./uv
+  chtag -b ./uvx
+  chmod +x ./uv ./uvx
   printInfo "Downloaded uv binary: ${_uv_bytes} bytes"
+  printInfo "Downloaded uvx binary: ${_uvx_bytes} bytes"
 }
 
 # Exercise what uv is for, not just that the binary starts.
@@ -143,6 +150,7 @@ zopen_custom_check() {
   # elsewhere, so paths built from it silently miss the binary and every step
   # after the first fails for a reason that has nothing to do with uv.
   _uv="$(pwd)/uv"
+  _uvx="$(pwd)/uvx"
   _uv_work="$(pwd)/.uv-check"
 
   _uv_pass=0
@@ -175,6 +183,8 @@ zopen_custom_check() {
 
   _uv_check "uv reports its version" \
     "'${_uv}' --version | grep -q '${UV_VERSION}'"
+  _uv_check "uvx is the standalone tool wrapper" \
+    "'${_uvx}' --help | grep -q 'Run a command provided by a Python package'"
   _uv_check "uv lists the interpreters it can see" \
     "'${_uv}' python list"
   _uv_check "uv init creates a project" \
@@ -199,12 +209,13 @@ zopen_custom_check() {
 zopen_custom_install() {
   mkdir -p "${ZOPEN_INSTALL_DIR}/bin"
   cp ./uv "${ZOPEN_INSTALL_DIR}/bin/uv"
+  cp ./uvx "${ZOPEN_INSTALL_DIR}/bin/uvx"
   chtag -b "${ZOPEN_INSTALL_DIR}/bin/uv"
-  chmod +x "${ZOPEN_INSTALL_DIR}/bin/uv"
-  # uvx is a symlink to uv in upstream; create it here too
-  ln -sf uv "${ZOPEN_INSTALL_DIR}/bin/uvx"
+  chtag -b "${ZOPEN_INSTALL_DIR}/bin/uvx"
+  chmod +x "${ZOPEN_INSTALL_DIR}/bin/uv" "${ZOPEN_INSTALL_DIR}/bin/uvx"
 }
 
 zopen_append_to_validate_install() {
   echo "uv --version"
+  echo "uvx --help >/dev/null"
 }

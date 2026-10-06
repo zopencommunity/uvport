@@ -10,6 +10,7 @@ This port targets **z/OS (s390x-ibm-zos)**, built from **uv 0.8.13** — the las
 |-----------|--------|
 | All Rust crates compile | ✅ |
 | `uv` binary | ✅ Linked and working |
+| `uvx` binary | ✅ Separate wrapper binary; invokes sibling `uv tool uvx` |
 | `uv --version` | ✅ `uv 0.8.13` |
 | `uv init` | ✅ |
 | `uv run` | ✅ |
@@ -35,6 +36,9 @@ chtag -b uv && chmod +x uv
 curl -L -o uvx https://github.com/zopencommunity/uvport/releases/download/v0.8.13/uvx
 chtag -b uvx && chmod +x uvx
 ```
+
+`uvx` is a separate upstream executable, not a symlink to `uv`. Keep both
+binaries in the same directory so `uvx` can locate and invoke its matching `uv`.
 
 ## Usage on z/OS
 
