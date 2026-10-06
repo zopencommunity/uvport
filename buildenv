@@ -103,8 +103,11 @@ zopen_get_version() {
 # Pinned to a specific source-version release so builds are reproducible.
 # uvx is a distinct upstream binary: it locates the sibling uv executable and
 # invokes `uv tool uvx`; it must not be implemented as a symlink to uv.
-UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv"
-UVX_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx"
+# Cache key for corrected v0.12.23 runtime assets. The query prevents proxies
+# from serving an earlier binary uploaded under the same release asset name.
+UV_ASSET_REVISION="4604c0bbc3c9b549"
+UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv?rev=${UV_ASSET_REVISION}"
+UVX_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx?rev=${UV_ASSET_REVISION}"
 
 zopen_init() {
   # -f matters: without it a 404 or an expired release leaves curl's HTML error
