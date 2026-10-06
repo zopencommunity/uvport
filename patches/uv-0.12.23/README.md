@@ -52,8 +52,8 @@ remain beside `uv`; it must not be replaced by a symlink.
 
 Published artifact checksums:
 
-- `uv`: `a3e766c1c6cd589580315c60674db5cc7379b6f05e1a57e3328fdf439abaaa63`
-- `uvx`: `b7eb641cd30d8f3ae6560a0854283c9c915ff1b04015e5919ac8a7c9ce2ff2b7`
+- `uv`: `4604c0bbc3c9b549394c9e5b894f18a94f87ff08138813313bd4023858c41616`
+- `uvx`: `12a4ceab44ad47975cea9ef360b7c75a904365ab3528e4bf8b361bc65d14b564`
 
 Validated directly on z/OS: `uv --version`, `uvx --help`, `uv python list`,
 `uv init`, `uv venv`, TLS installation of `idna` from PyPI, and importing the
