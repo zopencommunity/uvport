@@ -478,6 +478,23 @@ index 1978e08..56bb829 100644
  /// An asynchronous reader that reports progress as bytes are read.
  #[cfg(feature = "tokio")]
  pub struct ProgressReader<Reader: tokio::io::AsyncRead + Unpin, Callback: Fn(usize) + Unpin> {
+diff --git a/crates/uv-fs/src/link.rs b/crates/uv-fs/src/link.rs
+index 15d5160..9b6696f 100644
+--- a/crates/uv-fs/src/link.rs
++++ b/crates/uv-fs/src/link.rs
+@@ -38,7 +38,11 @@ pub enum LinkMode {
+ 
+ impl Default for LinkMode {
+     fn default() -> Self {
+-        if cfg!(any(
++        if cfg!(target_os = "zos") {
++            // z/OS home, cache, and temporary directories commonly reside on
++            // separate filesystems, where hard links cannot cross mount points.
++            Self::Copy
++        } else if cfg!(any(
+             target_os = "macos",
+             target_os = "ios",
+             target_os = "linux"
 diff --git a/crates/uv-fs/src/locked_file.rs b/crates/uv-fs/src/locked_file.rs
 index fb7db83..a7e98a5 100644
 --- a/crates/uv-fs/src/locked_file.rs
@@ -1485,6 +1502,33 @@ index 4a0d872..21f4a7b 100644
                  }
                  process.args(args);
  
+diff --git a/crates/uv/src/commands/tool/run.rs b/crates/uv/src/commands/tool/run.rs
+index 9d40e79..f1cba4e 100644
+--- a/crates/uv/src/commands/tool/run.rs
++++ b/crates/uv/src/commands/tool/run.rs
+@@ -415,7 +415,21 @@ pub(crate) async fn run(
+         }
+     }
+ 
+-    // Construct the command
++    // Construct the command. z/OS `execvp` does not reliably execute uv's
++    // relocatable Python entry-point trampolines and reports ENOENT. Invoke
++    // generated entry points through the environment's Python directly.
++    #[cfg(target_os = "zos")]
++    let mut process = {
++        let script = environment.scripts().join(executable);
++        if script.is_file() {
++            let mut process = Command::new(environment.interpreter().sys_executable());
++            process.arg(script);
++            process
++        } else {
++            Command::new(executable)
++        }
++    };
++    #[cfg(not(target_os = "zos"))]
+     let mut process = if cfg!(windows) {
+         WindowsRunnable::from_script_path(environment.scripts(), executable.as_ref()).into()
+     } else {
 diff --git a/crates/uv/src/lib.rs b/crates/uv/src/lib.rs
 index 1cab1fa..eca242b 100644
 --- a/crates/uv/src/lib.rs
