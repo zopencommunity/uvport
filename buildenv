@@ -171,7 +171,7 @@ zopen_custom_check() {
       # Say why. A bare FAIL leaves no way to tell a missing binary from a
       # network problem from a permissions one, and the difference is the whole
       # diagnosis.
-      sed 's/^/       /' "${_uv_work}/last.log" 2>/dev/null | head -5 >&2
+      sed 's/^/       /' "${_uv_work}/last.log" 2>/dev/null | head -20 >&2
       _uv_fail=$((_uv_fail + 1))
     fi
   }
@@ -190,8 +190,11 @@ zopen_custom_check() {
     "'${_uv}' --version | grep -q '${UV_VERSION}'"
   _uv_check "uvx is the standalone tool wrapper" \
     "'${_uvx}' --help | grep -q 'Run a command provided by a Python package'"
+  # Use pip itself as a small, stable package with a generated console entry
+  # point. HTTPie adds a large dependency graph and made this uvx regression
+  # check fail during wheel installation before its entry point was exercised.
   _uv_check "uvx installs and runs a Python entry point" \
-    "'${_uvx}' --from httpie http --version"
+    "'${_uvx}' --from pip pip --version"
   _uv_check "uv lists the interpreters it can see" \
     "'${_uv}' python list"
   _uv_check "uv init creates a project" \
