@@ -52,12 +52,12 @@ remain beside `uv`; it must not be replaced by a symlink.
 
 Published artifact checksums:
 
-- `uv`: `4604c0bbc3c9b549394c9e5b894f18a94f87ff08138813313bd4023858c41616`
-- `uvx`: `12a4ceab44ad47975cea9ef360b7c75a904365ab3528e4bf8b361bc65d14b564`
+- `uv`: `93a5d4de00f9cdf8df6b88c6c38b1e3aeea940f78dcb3a5e6134346fcd5f7d33`
+- `uvx`: `c1e4803f0e8449591416586362d1818f68427c212c5c9dc7ee91884487d479c2`
 
 Validated directly on z/OS: `uv --version`, `uvx --help`, `uv python list`,
-`uv init`, `uv venv`, TLS installation of `idna` from PyPI, and importing the
-installed package.
+`uv init`, `uv venv`, TLS installation of zopen wheels, importing native
+extensions, and executing HTTPie, Uvicorn, and FastMCP entry points with `uvx`.
 
 ## Runtime fixes specific to 0.12.23
 
@@ -68,3 +68,8 @@ installed package.
 - `setdomainname` is an unsupported advisory operation and is supplied by
   `zos_uv_stubs.c` as an `ENOSYS` compatibility shim.
 - AWS-LC is replaced by the patched ring TLS provider.
+- `uvx` invokes generated Python entry points through the tool environment's
+  interpreter because z/OS `execvp` cannot execute uv's relocatable shell
+  trampoline reliably.
+- Copy is the default package link mode on z/OS because cache and destination
+  directories commonly reside on different filesystems.

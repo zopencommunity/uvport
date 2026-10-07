@@ -105,7 +105,7 @@ zopen_get_version() {
 # invokes `uv tool uvx`; it must not be implemented as a symlink to uv.
 # Cache key for corrected v0.12.23 runtime assets. The query prevents proxies
 # from serving an earlier binary uploaded under the same release asset name.
-UV_ASSET_REVISION="4604c0bbc3c9b549"
+UV_ASSET_REVISION="93a5d4de00f9cdf8"
 UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv?rev=${UV_ASSET_REVISION}"
 UVX_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx?rev=${UV_ASSET_REVISION}"
 
@@ -182,12 +182,16 @@ zopen_custom_check() {
   rm -rf "${_uv_work}"
   mkdir -p "${_uv_work}"
   UV_CACHE_DIR="${_uv_work}/cache"
-  export UV_CACHE_DIR
+  UV_INDEX="https://repo.zopen.community/pypi/wheels/simple/"
+  UV_CONSTRAINT="https://repo.zopen.community/pulp/content/constraints/zopen-constraints.txt"
+  export UV_CACHE_DIR UV_INDEX UV_CONSTRAINT
 
   _uv_check "uv reports its version" \
     "'${_uv}' --version | grep -q '${UV_VERSION}'"
   _uv_check "uvx is the standalone tool wrapper" \
     "'${_uvx}' --help | grep -q 'Run a command provided by a Python package'"
+  _uv_check "uvx installs and runs a Python entry point" \
+    "'${_uvx}' --from httpie http --version"
   _uv_check "uv lists the interpreters it can see" \
     "'${_uv}' python list"
   _uv_check "uv init creates a project" \
