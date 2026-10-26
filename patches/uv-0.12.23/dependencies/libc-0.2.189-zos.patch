@@ -86896,10 +86896,13 @@ Binary files a/.git/objects/pack/pack-7789a3adaf20f3c65b9acc9530bb50fef64b3a90.r
 +
 +    #[repr(C)]
 +    pub struct sigaction {
-+        pub sa_handler: *mut c_void,
++        // z/OS exposes sa_handler and sa_sigaction as the same union slot.
++        // Keep one pointer-sized field at offset zero; representing both makes
++        // this structure 32 bytes instead of the ABI's 24 bytes and leaves
++        // the real handler uninitialized when nix writes sa_sigaction.
++        pub sa_sigaction: crate::sighandler_t,
 +        pub sa_mask: sigset_t,
 +        pub sa_flags: c_int,
-+        pub sa_sigaction: crate::sighandler_t,
 +    }
 +
 +    #[repr(C)]
