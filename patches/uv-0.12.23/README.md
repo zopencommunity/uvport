@@ -52,8 +52,8 @@ remain beside `uv`; it must not be replaced by a symlink.
 
 Published artifact checksums:
 
-- `uv`: `93a5d4de00f9cdf8df6b88c6c38b1e3aeea940f78dcb3a5e6134346fcd5f7d33`
-- `uvx`: `c1e4803f0e8449591416586362d1818f68427c212c5c9dc7ee91884487d479c2`
+- `uv`: `764f7d1f43a805dd35e05d0c2f13918d8605771378004ce1a0e5bedc1828130b`
+- `uvx`: `4bc2899cf90a2f1edd8b303c4b509056d1cdac9168c8cea31449a9762bbf2b05`
 
 Validated directly on z/OS: `uv --version`, `uvx --help`, `uv python list`,
 `uv init`, `uv venv`, TLS installation of zopen wheels, importing native
