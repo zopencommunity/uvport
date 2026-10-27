@@ -165,14 +165,24 @@ zopen_custom_check() {
   _uv_check() {
     _uv_check_log="${_uv_work}/last.log"
     _uv_check_timed_out="${_uv_work}/last.timeout"
-    rm -f "${_uv_check_timed_out}"
+    _uv_check_done="${_uv_work}/last.done"
+    rm -f "${_uv_check_timed_out}" "${_uv_check_done}"
 
     # Jenkins gives the complete check 3.5 hours. A stalled network operation
-    # must not consume all of it and hide which assertion hung.
+    # must not consume all of it and hide which assertion hung. Polling a done
+    # file lets the watchdog exit promptly; killing a shell blocked in `sleep`
+    # leaves that child alive on z/OS, making every successful check wait the
+    # full timeout before moving on.
     ( eval "$2" ) > "${_uv_check_log}" 2>&1 &
     _uv_check_pid=$!
     (
-      sleep "${UV_CHECK_TIMEOUT:-600}"
+      _uv_elapsed=0
+      while [ "${_uv_elapsed}" -lt "${UV_CHECK_TIMEOUT:-600}" ]; do
+        [ -f "${_uv_check_done}" ] && exit 0
+        sleep 1
+        _uv_elapsed=$((_uv_elapsed + 1))
+      done
+      [ -f "${_uv_check_done}" ] && exit 0
       if kill -0 "${_uv_check_pid}" 2>/dev/null; then
         echo "timed out after ${UV_CHECK_TIMEOUT:-600}s" > "${_uv_check_timed_out}"
         kill -TERM "${_uv_check_pid}" 2>/dev/null || true
@@ -187,7 +197,7 @@ zopen_custom_check() {
     else
       _uv_check_rc=$?
     fi
-    kill "${_uv_watchdog_pid}" 2>/dev/null || true
+    touch "${_uv_check_done}"
     wait "${_uv_watchdog_pid}" 2>/dev/null || true
 
     if [ "${_uv_check_rc}" -eq 0 ] && [ ! -f "${_uv_check_timed_out}" ]; then
@@ -246,7 +256,7 @@ zopen_custom_check() {
   _uv_check "uv tags generated project and virtualenv text files" \
     "cd '${_uv_work}/proj' && '${_uv}' lock && ls -T pyproject.toml uv.lock .venv/pyvenv.cfg .venv/bin/activate | grep -c 'ISO8859-1' | grep -q '^4$'"
   _uv_check "uv pip compile tags its atomic output file" \
-    "cd '${_uv_work}/proj' && printf 'idna\\n' > requirements.in && chtag -tc ISO8859-1 requirements.in && '${_uv}' pip compile --python .venv/bin/python requirements.in -o requirements.txt && ls -T requirements.txt | grep -q 'ISO8859-1'"
+    "cd '${_uv_work}/proj' && .venv/bin/python -c 'from pathlib import Path; Path(\"requirements.in\").write_bytes(b\"idna\\n\")' && chtag -tc ISO8859-1 requirements.in && '${_uv}' pip compile --python .venv/bin/python requirements.in -o requirements.txt && ls -T requirements.txt | grep -q 'ISO8859-1'"
   _uv_check "uv can recursively clear and recreate a virtual environment" \
     "cd '${_uv_work}/proj' && '${_uv}' venv --clear .venv"
 
