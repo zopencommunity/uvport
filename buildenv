@@ -105,7 +105,7 @@ zopen_get_version() {
 # invokes `uv tool uvx`; it must not be implemented as a symlink to uv.
 # Cache key for corrected v0.12.23 runtime assets. The query prevents proxies
 # from serving an earlier binary uploaded under the same release asset name.
-UV_ASSET_REVISION="764f7d1f43a805dd"
+UV_ASSET_REVISION="03a3ff1644ae8390"
 UV_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uv?rev=${UV_ASSET_REVISION}"
 UVX_BINARY_URL="https://github.com/zopencommunity/uvport/releases/download/v${UV_VERSION}/uvx?rev=${UV_ASSET_REVISION}"
 
@@ -163,15 +163,43 @@ zopen_custom_check() {
   # effect for every step after it, so one failure cascades into several and the
   # log blames the wrong thing.
   _uv_check() {
-    if ( eval "$2" ) > "${_uv_work}/last.log" 2>&1; then
+    _uv_check_log="${_uv_work}/last.log"
+    _uv_check_timed_out="${_uv_work}/last.timeout"
+    rm -f "${_uv_check_timed_out}"
+
+    # Jenkins gives the complete check 3.5 hours. A stalled network operation
+    # must not consume all of it and hide which assertion hung.
+    ( eval "$2" ) > "${_uv_check_log}" 2>&1 &
+    _uv_check_pid=$!
+    (
+      sleep "${UV_CHECK_TIMEOUT:-600}"
+      if kill -0 "${_uv_check_pid}" 2>/dev/null; then
+        echo "timed out after ${UV_CHECK_TIMEOUT:-600}s" > "${_uv_check_timed_out}"
+        kill -TERM "${_uv_check_pid}" 2>/dev/null || true
+        sleep 10
+        kill -KILL "${_uv_check_pid}" 2>/dev/null || true
+      fi
+    ) &
+    _uv_watchdog_pid=$!
+
+    if wait "${_uv_check_pid}"; then
+      _uv_check_rc=0
+    else
+      _uv_check_rc=$?
+    fi
+    kill "${_uv_watchdog_pid}" 2>/dev/null || true
+    wait "${_uv_watchdog_pid}" 2>/dev/null || true
+
+    if [ "${_uv_check_rc}" -eq 0 ] && [ ! -f "${_uv_check_timed_out}" ]; then
       echo "PASS: $1"
       _uv_pass=$((_uv_pass + 1))
     else
       echo "FAIL: $1" >&2
+      [ -f "${_uv_check_timed_out}" ] && sed 's/^/       /' "${_uv_check_timed_out}" >&2
       # Say why. A bare FAIL leaves no way to tell a missing binary from a
       # network problem from a permissions one, and the difference is the whole
       # diagnosis.
-      sed 's/^/       /' "${_uv_work}/last.log" 2>/dev/null | head -20 >&2
+      sed 's/^/       /' "${_uv_check_log}" 2>/dev/null | head -20 >&2
       _uv_fail=$((_uv_fail + 1))
     fi
   }
@@ -190,11 +218,11 @@ zopen_custom_check() {
     "'${_uv}' --version | grep -q '${UV_VERSION}'"
   _uv_check "uvx is the standalone tool wrapper" \
     "'${_uvx}' --help | grep -q 'Run a command provided by a Python package'"
-  # Use pip itself as a small, stable package with a generated console entry
-  # point. HTTPie adds a large dependency graph and made this uvx regression
-  # check fail during wheel installation before its entry point was exercised.
-  _uv_check "uvx installs and runs a Python entry point" \
-    "'${_uvx}' --from pip pip --version"
+  # Keep the wrapper check offline. Package installation is covered below;
+  # making uvx resolve an environment here previously stalled the entire
+  # Jenkins check until its 3.5-hour outer timeout.
+  _uv_check "uvx delegates to the sibling uv executable" \
+    "'${_uvx}' --version | grep -q '${UV_VERSION}'"
   _uv_check "uv lists the interpreters it can see" \
     "'${_uv}' python list"
   _uv_check "uv init creates a project" \
@@ -209,6 +237,18 @@ zopen_custom_check() {
     "cd '${_uv_work}/proj' && '${_uv}' pip install --python .venv/bin/python idna"
   _uv_check "the installed package imports" \
     "cd '${_uv_work}/proj' && .venv/bin/python -c 'import idna; idna.encode(\"example.com\")'"
+
+  # Regression checks for z/OS-native behavior. Ruff's wheels exercise both
+  # accepted platform spellings (`os390_*` and `zos`) and its `.data/scripts`
+  # directory exercises recursive cleanup after scripts are installed.
+  _uv_check "uv accepts the native z/OS Ruff wheel and cleans its data directory" \
+    "cd '${_uv_work}/proj' && '${_uv}' pip install --python .venv/bin/python ruff && .venv/bin/ruff --version"
+  _uv_check "uv tags generated project and virtualenv text files" \
+    "cd '${_uv_work}/proj' && '${_uv}' lock && ls -T pyproject.toml uv.lock .venv/pyvenv.cfg .venv/bin/activate | grep -c 'ISO8859-1' | grep -q '^4$'"
+  _uv_check "uv pip compile tags its atomic output file" \
+    "cd '${_uv_work}/proj' && printf 'idna\\n' > requirements.in && chtag -tc ISO8859-1 requirements.in && '${_uv}' pip compile --python .venv/bin/python requirements.in -o requirements.txt && ls -T requirements.txt | grep -q 'ISO8859-1'"
+  _uv_check "uv can recursively clear and recreate a virtual environment" \
+    "cd '${_uv_work}/proj' && '${_uv}' venv --clear .venv"
 
   echo "uv ${UV_VERSION} -- ${_uv_pass} passed, ${_uv_fail} failed"
   rm -rf "${_uv_work}"

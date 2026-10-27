@@ -1,0 +1,32 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -221,7 +221,28 @@
+     P: AsRef<Path>,
+ {
+     let path = path.as_ref();
+-    fs::remove_dir_all(path).map_err(|source| Error::build(source, ErrorKind::RemoveDir, path))
++    #[cfg(target_os = "zos")]
++    let result = remove_dir_all_zos(path);
++    #[cfg(not(target_os = "zos"))]
++    let result = fs::remove_dir_all(path);
++    result.map_err(|source| Error::build(source, ErrorKind::RemoveDir, path))
++}
++
++/// z/OS's fd-based `std::fs::remove_dir_all` reaches the EBCDIC-only
++/// `fdopendir` interface and can fail with `EBADF`. Use path-based traversal,
++/// taking care not to follow directory symlinks.
++#[cfg(target_os = "zos")]
++fn remove_dir_all_zos(path: &Path) -> io::Result<()> {
++    for entry in fs::read_dir(path)? {
++        let entry = entry?;
++        let child = entry.path();
++        if entry.file_type()?.is_dir() {
++            remove_dir_all_zos(&child)?;
++        } else {
++            fs::remove_file(&child)?;
++        }
++    }
++    fs::remove_dir(path)
+ }
+ 
+ /// Removes a file from the filesystem.

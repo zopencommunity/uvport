@@ -5,9 +5,38 @@
 #include <unistd.h>
 #include <errno.h>
 #include <termios.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <stdlib.h>
 
 /* z/OS compatibility shims for APIs used optionally by uv dependencies. */
 int *errno_location(void) { return __errno(); }
+
+/* Persistently mark an ASCII text file as ISO8859-1 (CCSID 819). Rust's raw
+ * open/write calls bypass LE AUTOTAG, so generated files otherwise remain
+ * untagged and are mis-converted as EBCDIC when _BPXK_AUTOCVT=ON. */
+int zos_tag_text_path(const char *path) {
+    attrib_t attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.att_filetagchg = 1;
+    attr.att_filetag.ft_ccsid = 819;
+    attr.att_filetag.ft_txtflag = 1;
+
+    /* The cross compiler does not apply the pragma that redirects __chattr to
+     * its ASCII entry point. Convert the pathname for the EBCDIC entry point
+     * explicitly; the file contents remain untouched ASCII. */
+    char *ebcdic_path = strdup(path);
+    if (ebcdic_path == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    __a2e_l(ebcdic_path, strlen(ebcdic_path));
+    int rc = __chattr(ebcdic_path, &attr, sizeof(attr));
+    int saved_errno = errno;
+    free(ebcdic_path);
+    errno = saved_errno;
+    return rc;
+}
 
 unsigned int get_cpu_num(void) {
 #ifdef _SC_NPROCESSORS_ONLN

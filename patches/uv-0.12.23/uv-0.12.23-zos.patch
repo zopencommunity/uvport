@@ -1,6 +1,8 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 60a36b6..ee7d783 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -240,7 +240,7 @@
+@@ -240,7 +240,7 @@ reqwest = { version = "0.13.1", default-features = false, features = [
    "zstd",
    "stream",
    "system-proxy",
@@ -9,7 +11,7 @@
    "socks",
    "multipart",
    "http2",
-@@ -393,9 +393,8 @@
+@@ -393,9 +393,8 @@ rcgen = { version = "0.14.5", features = [
    "ring",
  ], default-features = false }
  rustls = { version = "0.23.36", default-features = false, features = [
@@ -20,7 +22,43 @@
    "std",
    "tls12",
  ] }
-@@ -542,3 +541,11 @@
+@@ -455,6 +454,35 @@ large_stack_arrays = "allow"
+ # file names and line numbers for backtraces. This reduced total time by 20% versus
+ # full debug information in one warm edit/build/test replay on macOS:
+ # https://github.com/astral-sh/uv/pull/21546
++[patch.crates-io]
++archive-trait = { path = "zos-deps/archive-trait" }
++cap-primitives = { path = "zos-deps/cap-primitives" }
++cargo-util = { path = "zos-deps/cargo-util" }
++constant_time_eq = { path = "zos-deps/constant_time_eq" }
++ctrlc = { path = "zos-deps/ctrlc" }
++filetime = { path = "zos-deps/filetime" }
++fs-err = { path = "zos-deps/fs-err" }
++fs2 = { path = "zos-deps/fs2" }
++getrandom-02 = { package = "getrandom", path = "zos-deps/getrandom-02" }
++getrandom-04 = { package = "getrandom", path = "zos-deps/getrandom-04" }
++ignore = { path = "zos-deps/ignore" }
++jobserver = { path = "zos-deps/jobserver" }
++libc = { path = "zos-deps/libc" }
++mio = { path = "zos-deps/mio" }
++nix = { path = "zos-deps/nix-031" }
++ring = { path = "zos-deps/ring" }
++rustix = { path = "zos-deps/rustix" }
++rustls = { path = "zos-deps/rustls" }
++socket2 = { path = "zos-deps/socket2" }
++tar-codec = { path = "zos-deps/tar-codec" }
++tar-framing = { path = "zos-deps/tar-framing" }
++target-lexicon = { path = "zos-deps/target-lexicon" }
++time = { path = "zos-deps/time" }
++time-macros = { path = "zos-deps/time-macros" }
++tokio = { path = "zos-deps/tokio" }
++zeroize = { path = "zos-deps/zeroize" }
++zstd-sys = { path = "zos-deps/zstd-sys" }
++
+ [profile.dev]
+ debug = "line-tables-only"
+ 
+@@ -542,3 +570,11 @@ codegen-units = 1
  # The profile that 'cargo dist' will build with.
  [profile.dist]
  inherits = "release"
@@ -392,16 +430,17 @@ index e8f8a4f..a8e7cb3 100644
  //!
  //! When we receive the requirements from `pip sync`, we check which requirements already fulfilled
 diff --git a/crates/uv-distribution-types/src/minimum_libc_version.rs b/crates/uv-distribution-types/src/minimum_libc_version.rs
-index 295104b..29bd4b5 100644
+index 295104b..1997c73 100644
 --- a/crates/uv-distribution-types/src/minimum_libc_version.rs
 +++ b/crates/uv-distribution-types/src/minimum_libc_version.rs
-@@ -50,7 +50,8 @@ impl MinimumLibcVersion {
+@@ -50,7 +50,9 @@ impl MinimumLibcVersion {
              | PlatformTag::Solaris { .. }
              | PlatformTag::Pyodide { .. }
              | PlatformTag::PyEmscripten { .. }
 -            | PlatformTag::Ios { .. } => return [true; 2],
 +            | PlatformTag::Ios { .. }
-+            | PlatformTag::Zos { .. } => return [true; 2],
++            | PlatformTag::Zos
++            | PlatformTag::Os390 { .. } => return [true; 2],
          };
          [
              self.glibc.is_none_or(|version| glibc <= version),
@@ -436,10 +475,64 @@ index 6c847ca..d32d168 100644
  //!
  //! This crate provides a nanoid-style ID generator, but with IDs of length 16
 diff --git a/crates/uv-fs/src/lib.rs b/crates/uv-fs/src/lib.rs
-index 1978e08..56bb829 100644
+index 1978e08..4780dfd 100644
 --- a/crates/uv-fs/src/lib.rs
 +++ b/crates/uv-fs/src/lib.rs
-@@ -470,14 +470,10 @@ mod windows_tests {
+@@ -40,6 +40,53 @@ mod read;
+ mod space;
+ pub mod which;
+ 
++/// Persistently tag a generated text file as ISO8859-1 on z/OS.
++///
++/// Rust writes ASCII bytes through raw file descriptors, bypassing LE's
++/// `FILETAG(AUTOTAG)` handling. Without an explicit tag, normal z/OS
++/// auto-conversion treats the bytes as EBCDIC when the file is read.
++#[cfg(target_os = "zos")]
++pub fn tag_text_file(path: impl AsRef<Path>) -> io::Result<()> {
++    use std::ffi::CString;
++    use std::os::unix::ffi::OsStrExt;
++
++    unsafe extern "C" {
++        fn zos_tag_text_path(path: *const std::ffi::c_char) -> std::ffi::c_int;
++    }
++
++    let path = path.as_ref();
++    let c_path = CString::new(path.as_os_str().as_bytes())
++        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "path contains a NUL byte"))?;
++    if unsafe { zos_tag_text_path(c_path.as_ptr()) } == 0 {
++        Ok(())
++    } else {
++        Err(io::Error::last_os_error())
++    }
++}
++
++#[cfg(not(target_os = "zos"))]
++pub fn tag_text_file(_path: impl AsRef<Path>) -> io::Result<()> {
++    Ok(())
++}
++
++/// Write a generated text file and apply the platform's text metadata.
++pub fn write_text(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> io::Result<()> {
++    let path = path.as_ref();
++    fs_err::write(path, contents)?;
++    tag_text_file(path)
++}
++
++/// Asynchronously write a generated text file and apply text metadata.
++#[cfg(feature = "tokio")]
++pub async fn write_text_async(
++    path: impl AsRef<Path>,
++    contents: impl AsRef<[u8]>,
++) -> io::Result<()> {
++    let path = path.as_ref();
++    fs_err::tokio::write(path, contents).await?;
++    tag_text_file(path)
++}
++
+ /// Return the number of hardlinks to a file.
+ #[cfg(unix)]
+ pub fn hardlink_count(path: &Path) -> io::Result<u64> {
+@@ -470,14 +517,10 @@ mod windows_tests {
  /// This function should only be used for files. If targeting a directory, use [`replace_symlink`]
  /// instead; it will use a junction on Windows, which is more performant.
  pub fn symlink_or_copy_file(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
@@ -458,7 +551,7 @@ index 1978e08..56bb829 100644
  
      Ok(())
  }
-@@ -896,6 +892,7 @@ pub fn is_virtualenv_base(path: impl AsRef<Path>) -> bool {
+@@ -896,6 +939,7 @@ pub fn is_virtualenv_base(path: impl AsRef<Path>) -> bool {
  }
  
  /// Whether the error is due to a lock being held.
@@ -466,7 +559,7 @@ index 1978e08..56bb829 100644
  fn is_known_already_locked_error(err: &std::fs::TryLockError) -> bool {
      match err {
          std::fs::TryLockError::WouldBlock => true,
-@@ -909,6 +906,11 @@ fn is_known_already_locked_error(err: &std::fs::TryLockError) -> bool {
+@@ -909,6 +953,11 @@ fn is_known_already_locked_error(err: &std::fs::TryLockError) -> bool {
      }
  }
  
@@ -653,6 +746,21 @@ index 7bd1e77..fc92b60 100644
  
      for component in components {
          match component {
+diff --git a/crates/uv-install-wheel/src/wheel.rs b/crates/uv-install-wheel/src/wheel.rs
+index 52adff0..0e8eabd 100644
+--- a/crates/uv-install-wheel/src/wheel.rs
++++ b/crates/uv-install-wheel/src/wheel.rs
+@@ -860,7 +860,9 @@ fn write_file_recorded(
+         relative_path.display()
+     );
+ 
+-    uv_fs::write_atomic_sync(site_packages.join(relative_path), content.as_ref())?;
++    let path = site_packages.join(relative_path);
++    uv_fs::write_atomic_sync(&path, content.as_ref())?;
++    uv_fs::tag_text_file(&path)?;
+ 
+     let hash = Sha256::new().chain_update(content.as_ref()).finalize();
+     let encoded_hash = format!("sha256={}", BASE64URL_NOPAD.encode(&hash));
 diff --git a/crates/uv-installer/src/lib.rs b/crates/uv-installer/src/lib.rs
 index b42004e..1fa4228 100644
 --- a/crates/uv-installer/src/lib.rs
@@ -850,38 +958,46 @@ index d4f3d9d..fb2ea12 100644
      }
  }
 diff --git a/crates/uv-platform-tags/src/platform_tag.rs b/crates/uv-platform-tags/src/platform_tag.rs
-index c0ff71a..13f6692 100644
+index c0ff71a..e072d28 100644
 --- a/crates/uv-platform-tags/src/platform_tag.rs
 +++ b/crates/uv-platform-tags/src/platform_tag.rs
-@@ -114,6 +114,8 @@ pub enum PlatformTag {
+@@ -114,6 +114,12 @@ pub enum PlatformTag {
      Solaris { release_arch: ReleaseArch },
      /// Ex) `pyodide_2024_0_wasm32`
      Pyodide { major: u16, minor: u16 },
++    /// Generic z/OS tag emitted by CPython 3.14+.
++    /// Ex) `zos`
++    Zos,
++    /// Versioned z/OS tag emitted by CPython 3.12 and 3.13.
 +    /// Ex) `os390_29_00_8561`
-+    Zos { release_arch: SmallString },
++    Os390 { release_arch: SmallString },
      /// Ex) `pyemscripten_2026_0_wasm32`
      PyEmscripten { major: u16, minor: u16 },
      /// Ex) `ios_13_0_arm64_iphoneos` / `ios_13_0_arm64_iphonesimulator`
-@@ -152,6 +154,7 @@ impl PlatformTag {
+@@ -152,6 +158,7 @@ impl PlatformTag {
              Self::Illumos { .. } => Some("Illumos"),
              Self::Solaris { .. } => Some("Solaris"),
              Self::Pyodide { .. } => Some("Pyodide"),
-+            Self::Zos { .. } => Some("z/OS"),
++            Self::Zos | Self::Os390 { .. } => Some("z/OS"),
              Self::PyEmscripten { .. } => Some("Emscripten"),
              Self::Ios { .. } => Some("iOS"),
          }
-@@ -470,6 +473,7 @@ impl std::fmt::Display for PlatformTag {
+@@ -470,6 +477,8 @@ impl std::fmt::Display for PlatformTag {
              Self::Illumos { release_arch } => write!(f, "illumos_{release_arch}"),
              Self::Solaris { release_arch } => write!(f, "solaris_{release_arch}_64bit"),
              Self::Pyodide { major, minor } => write!(f, "pyodide_{major}_{minor}_wasm32"),
-+            Self::Zos { release_arch } => write!(f, "os390_{release_arch}"),
++            Self::Zos => write!(f, "zos"),
++            Self::Os390 { release_arch } => write!(f, "os390_{release_arch}"),
              Self::PyEmscripten { major, minor } => {
                  write!(f, "pyemscripten_{major}_{minor}_wasm32")
              }
-@@ -950,6 +954,19 @@ impl FromStr for PlatformTag {
+@@ -950,6 +959,22 @@ impl FromStr for PlatformTag {
              });
          }
  
++        if s == "zos" {
++            return Ok(Self::Zos);
++        }
 +        if let Some(rest) = s.strip_prefix("os390_") {
 +            // Ex) os390_29_00_8561
 +            if rest.is_empty() {
@@ -890,7 +1006,7 @@ index c0ff71a..13f6692 100644
 +                    tag: s.to_string(),
 +                });
 +            }
-+            return Ok(Self::Zos {
++            return Ok(Self::Os390 {
 +                release_arch: SmallString::from(rest),
 +            });
 +        }
@@ -898,8 +1014,30 @@ index c0ff71a..13f6692 100644
          Err(ParsePlatformTagError::UnknownFormat(s.to_string()))
      }
  }
+@@ -993,6 +1018,21 @@ mod tests {
+         assert_eq!(PlatformTag::Any.to_string(), "any");
+     }
+ 
++    #[test]
++    fn zos_platforms() {
++        assert_eq!(PlatformTag::from_str("zos"), Ok(PlatformTag::Zos));
++        assert_eq!(PlatformTag::Zos.to_string(), "zos");
++
++        let versioned = PlatformTag::Os390 {
++            release_arch: "29_00_8561".into(),
++        };
++        assert_eq!(
++            PlatformTag::from_str("os390_29_00_8561"),
++            Ok(versioned.clone())
++        );
++        assert_eq!(versioned.to_string(), "os390_29_00_8561");
++    }
++
+     #[test]
+     fn manylinux_platform() {
+         let tag = PlatformTag::Manylinux {
 diff --git a/crates/uv-platform-tags/src/tags.rs b/crates/uv-platform-tags/src/tags.rs
-index 48c780d..de098f9 100644
+index 48c780d..8e8bedd 100644
 --- a/crates/uv-platform-tags/src/tags.rs
 +++ b/crates/uv-platform-tags/src/tags.rs
 @@ -5,6 +5,7 @@ use std::sync::Arc;
@@ -910,17 +1048,21 @@ index 48c780d..de098f9 100644
  
  use crate::abi_tag::CPythonAbiVariants;
  use crate::{AbiTag, Arch, LanguageTag, Os, Platform, PlatformError, PlatformTag, ReleaseArch};
-@@ -899,6 +900,14 @@ fn compatible_tags(platform: &Platform) -> Result<Vec<PlatformTag>, PlatformErro
+@@ -899,6 +900,18 @@ fn compatible_tags(platform: &Platform) -> Result<Vec<PlatformTag>, PlatformErro
  
              platform_tags
          }
 +        (Os::Zos { release }, _arch) => {
-+            // z/OS platform tag format: "os390_<release>" (no arch suffix)
-+            // e.g. release "29.00-8561" -> "os390_29_00_8561"
++            // CPython 3.14+ emits the generic `zos` platform tag, while 3.12
++            // and 3.13 emit `os390_<release>`. Accept both on every supported
++            // z/OS interpreter so wheels from either naming generation resolve.
 +            let release = release.replace(['.', '-'], "_");
-+            vec![PlatformTag::Zos {
-+                release_arch: SmallString::from(release),
-+            }]
++            vec![
++                PlatformTag::Zos,
++                PlatformTag::Os390 {
++                    release_arch: SmallString::from(release),
++                },
++            ]
 +        }
          _ => {
              return Err(PlatformError::OsVersionDetectionError(format!(
@@ -1246,6 +1388,19 @@ index cb6de81..a02f344 100644
          }
      }
  }
+diff --git a/crates/uv-python/src/version_files.rs b/crates/uv-python/src/version_files.rs
+index a12980d..4d399fa 100644
+--- a/crates/uv-python/src/version_files.rs
++++ b/crates/uv-python/src/version_files.rs
+@@ -291,7 +291,7 @@ impl PythonVersionFile {
+         if let Some(parent) = self.path.parent() {
+             fs_err::tokio::create_dir_all(parent).await?;
+         }
+-        fs::tokio::write(
++        uv_fs::write_text_async(
+             &self.path,
+             self.versions
+                 .iter()
 diff --git a/crates/uv-requirements/src/lib.rs b/crates/uv-requirements/src/lib.rs
 index 07ae40d..4ced1a7 100644
 --- a/crates/uv-requirements/src/lib.rs
@@ -1395,6 +1550,52 @@ index df48012..8b27c11 100644
  use std::io;
  use std::path::{Path, PathBuf};
  
+diff --git a/crates/uv-virtualenv/src/virtualenv.rs b/crates/uv-virtualenv/src/virtualenv.rs
+index 98dd237..ad8fd16 100644
+--- a/crates/uv-virtualenv/src/virtualenv.rs
++++ b/crates/uv-virtualenv/src/virtualenv.rs
+@@ -209,7 +209,7 @@ pub(crate) fn create(
+     cachedir::ensure_tag(&location)?;
+ 
+     // Create a `.gitignore` file to ignore all files in the venv.
+-    fs_err::write(location.join(".gitignore"), "*")?;
++    uv_fs::write_text(location.join(".gitignore"), "*")?;
+ 
+     let mut using_minor_version_link = false;
+     let executable_target = if upgradeable {
+@@ -536,7 +536,7 @@ pub(crate) fn create(
+             .replace("{{ VIRTUAL_PROMPT }}", &virtual_prompt)
+             .replace("{{ PATH_SEP }}", path_sep)
+             .replace("{{ RELATIVE_SITE_PACKAGES }}", &relative_site_packages);
+-        fs_err::write(scripts.join(name), activator)?;
++        uv_fs::write_text(scripts.join(name), activator)?;
+     }
+ 
+     let mut pyvenv_cfg_data: Vec<(String, String)> = vec![
+@@ -593,9 +593,11 @@ pub(crate) fn create(
+         ));
+     }
+ 
+-    let mut pyvenv_cfg = BufWriter::new(File::create(location.join("pyvenv.cfg"))?);
++    let pyvenv_cfg_path = location.join("pyvenv.cfg");
++    let mut pyvenv_cfg = BufWriter::new(File::create(&pyvenv_cfg_path)?);
+     write_cfg(&mut pyvenv_cfg, &pyvenv_cfg_data)?;
+     drop(pyvenv_cfg);
++    uv_fs::tag_text_file(&pyvenv_cfg_path)?;
+ 
+     // Construct the path to the `site-packages` directory.
+     let site_packages = location.join(&interpreter.virtualenv().purelib);
+@@ -618,8 +620,8 @@ pub(crate) fn create(
+     }
+ 
+     if install_distutils_patch(interpreter) {
+-        fs_err::write(site_packages.join("_virtualenv.py"), VIRTUALENV_PATCH)?;
+-        fs_err::write(site_packages.join("_virtualenv.pth"), "import _virtualenv")?;
++        uv_fs::write_text(site_packages.join("_virtualenv.py"), VIRTUALENV_PATCH)?;
++        uv_fs::write_text(site_packages.join("_virtualenv.pth"), "import _virtualenv")?;
+     }
+ 
+     Ok(VirtualEnvironment {
 diff --git a/crates/uv-warnings/src/lib.rs b/crates/uv-warnings/src/lib.rs
 index 3e00d01..ca7b095 100644
 --- a/crates/uv-warnings/src/lib.rs
@@ -1454,6 +1655,205 @@ index 074817b..c112322 100644
      }
  }
  
+diff --git a/crates/uv/src/commands/mod.rs b/crates/uv/src/commands/mod.rs
+index 34f691f..fa31d94 100644
+--- a/crates/uv/src/commands/mod.rs
++++ b/crates/uv/src/commands/mod.rs
+@@ -489,7 +489,8 @@ impl<'a> OutputWriter<'a> {
+                 .map(Cow::Owned)
+                 .unwrap_or(Cow::Borrowed(output_file));
+             let stream = anstream::adapter::strip_bytes(&self.buffer).into_vec();
+-            uv_fs::write_atomic(output_file, &stream).await?;
++            uv_fs::write_atomic(&output_file, &stream).await?;
++            uv_fs::tag_text_file(output_file)?;
+         }
+         Ok(())
+     }
+diff --git a/crates/uv/src/commands/project/add.rs b/crates/uv/src/commands/project/add.rs
+index b40d4c5..3f42744 100644
+--- a/crates/uv/src/commands/project/add.rs
++++ b/crates/uv/src/commands/project/add.rs
+@@ -654,7 +654,7 @@ pub(crate) async fn add(
+         // the discovered members, etc.
+         target = if modified {
+             let workspace_content = toml.to_string();
+-            fs_err::write(
++            uv_fs::write_text(
+                 project.workspace().install_path().join("pyproject.toml"),
+                 &workspace_content,
+             )?;
+@@ -1442,7 +1442,7 @@ impl AddTarget {
+                     Ok(false)
+                 } else {
+                     let pyproject_path = project.root().join("pyproject.toml");
+-                    fs_err::write(pyproject_path, content)?;
++                    uv_fs::write_text(pyproject_path, content)?;
+                     Ok(true)
+                 }
+             }
+diff --git a/crates/uv/src/commands/project/edit.rs b/crates/uv/src/commands/project/edit.rs
+index c79a174..77b17b1 100644
+--- a/crates/uv/src/commands/project/edit.rs
++++ b/crates/uv/src/commands/project/edit.rs
+@@ -78,7 +78,7 @@ impl FileSnapshot {
+ 
+         debug!("Reverting changes to `{}`", self.path.user_display());
+         if let Some(contents) = &self.contents {
+-            fs_err::write(&self.path, contents)
++            uv_fs::write_text(&self.path, contents)
+         } else {
+             match fs_err::remove_file(&self.path) {
+                 Ok(()) => Ok(()),
+diff --git a/crates/uv/src/commands/project/environment.rs b/crates/uv/src/commands/project/environment.rs
+index 8f9145a..6358cc9 100644
+--- a/crates/uv/src/commands/project/environment.rs
++++ b/crates/uv/src/commands/project/environment.rs
+@@ -50,7 +50,7 @@ impl EphemeralEnvironment {
+             .next()
+             .ok_or(ProjectError::NoSitePackages)?;
+         let overlay_path = site_packages.join("_uv_ephemeral_overlay.pth");
+-        fs_err::write(overlay_path, contents)?;
++        uv_fs::write_text(overlay_path, contents)?;
+         Ok(())
+     }
+ 
+diff --git a/crates/uv/src/commands/project/init.rs b/crates/uv/src/commands/project/init.rs
+index 766a502..b14d4fc 100644
+--- a/crates/uv/src/commands/project/init.rs
++++ b/crates/uv/src/commands/project/init.rs
+@@ -177,7 +177,7 @@ pub(crate) async fn init(
+             if !no_readme && !bare {
+                 let readme = path.join("README.md");
+                 if !readme.exists() {
+-                    fs_err::write(readme, String::new())?;
++                    uv_fs::write_text(readme, String::new())?;
+                 }
+             }
+ 
+@@ -448,7 +448,7 @@ async fn init_project(
+             pyproject.add_workspace(path.strip_prefix(workspace.install_path())?)?;
+ 
+             // Save the modified `pyproject.toml`.
+-            fs_err::write(
++            uv_fs::write_text(
+                 workspace.install_path().join("pyproject.toml"),
+                 pyproject.to_string(),
+             )?;
+@@ -831,7 +831,7 @@ impl InitProjectKind {
+                 // TODO(zanieb): Only create `main.py` if there are no other Python files?
+                 let main_py = path.join("main.py");
+                 if !main_py.try_exists()? && !bare {
+-                    fs_err::write(path.join("main.py"), main_contents)?;
++                    uv_fs::write_text(path.join("main.py"), main_contents)?;
+                 }
+             }
+             Self::Library => {
+@@ -844,7 +844,7 @@ impl InitProjectKind {
+                 generate_package_scripts(name, path, build_backend, true)?;
+             }
+         }
+-        fs_err::write(path.join("pyproject.toml"), pyproject)?;
++        uv_fs::write_text(path.join("pyproject.toml"), pyproject)?;
+         Ok(())
+     }
+ }
+@@ -1011,7 +1011,7 @@ fn pyproject_build_backend_prerequisites(
+             // Generate Cargo.toml
+             let build_file = path.join("Cargo.toml");
+             if !build_file.try_exists()? {
+-                fs_err::write(
++                uv_fs::write_text(
+                     build_file,
+                     indoc::formatdoc! {r#"
+                     [package]
+@@ -1036,7 +1036,7 @@ fn pyproject_build_backend_prerequisites(
+             // Generate CMakeLists.txt
+             let build_file = path.join("CMakeLists.txt");
+             if !build_file.try_exists()? {
+-                fs_err::write(
++                uv_fs::write_text(
+                     build_file,
+                     indoc::formatdoc! {r"
+                     cmake_minimum_required(VERSION 3.15...4.0)
+@@ -1109,7 +1109,7 @@ fn generate_package_scripts(
+             // Generate lib.rs
+             let native_src = src_dir.join("lib.rs");
+             if !native_src.try_exists()? {
+-                fs_err::write(
++                uv_fs::write_text(
+                     native_src,
+                     indoc::formatdoc! {r#"
+                     use pyo3::prelude::*;
+@@ -1132,7 +1132,7 @@ fn generate_package_scripts(
+             // Generate .pyi file
+             let pyi_file = pkg_dir.join("_core.pyi");
+             if !pyi_file.try_exists()? {
+-                fs_err::write(pyi_file, pyi_contents)?;
++                uv_fs::write_text(pyi_file, pyi_contents)?;
+             }
+             // Return python script calling binary
+             binary_call_script
+@@ -1141,7 +1141,7 @@ fn generate_package_scripts(
+             // Generate main.cpp
+             let native_src = src_dir.join("main.cpp");
+             if !native_src.try_exists()? {
+-                fs_err::write(
++                uv_fs::write_text(
+                     native_src,
+                     indoc::formatdoc! {r#"
+                     #include <pybind11/pybind11.h>
+@@ -1163,7 +1163,7 @@ fn generate_package_scripts(
+             // Generate .pyi file
+             let pyi_file = pkg_dir.join("_core.pyi");
+             if !pyi_file.try_exists()? {
+-                fs_err::write(pyi_file, pyi_contents)?;
++                uv_fs::write_text(pyi_file, pyi_contents)?;
+             }
+             // Return python script calling binary
+             binary_call_script
+@@ -1174,14 +1174,14 @@ fn generate_package_scripts(
+     // Create `src/{name}/__init__.py`, if it doesn't exist already.
+     let init_py = pkg_dir.join("__init__.py");
+     if !init_py.try_exists()? {
+-        fs_err::write(init_py, package_script)?;
++        uv_fs::write_text(init_py, package_script)?;
+     }
+ 
+     // Create `src/{name}/py.typed`, if it doesn't exist already.
+     if is_lib {
+         let py_typed = pkg_dir.join("py.typed");
+         if !py_typed.try_exists()? {
+-            fs_err::write(py_typed, "")?;
++            uv_fs::write_text(py_typed, "")?;
+         }
+     }
+ 
+diff --git a/crates/uv/src/commands/project/lock_target.rs b/crates/uv/src/commands/project/lock_target.rs
+index c21f904..a1308f5 100644
+--- a/crates/uv/src/commands/project/lock_target.rs
++++ b/crates/uv/src/commands/project/lock_target.rs
+@@ -404,7 +404,7 @@ impl<'lock> LockTarget<'lock> {
+     /// Write the lockfile to disk.
+     pub(crate) async fn commit(self, lock: &Lock) -> Result<(), ProjectError> {
+         let encoded = lock.to_toml()?;
+-        fs_err::tokio::write(self.lock_path(), encoded).await?;
++        uv_fs::write_text_async(self.lock_path(), encoded).await?;
+         Ok(())
+     }
+ 
+diff --git a/crates/uv/src/commands/project/remove.rs b/crates/uv/src/commands/project/remove.rs
+index a3b2662..5e48995 100644
+--- a/crates/uv/src/commands/project/remove.rs
++++ b/crates/uv/src/commands/project/remove.rs
+@@ -448,7 +448,7 @@ impl RemoveTarget {
+                     Ok(false)
+                 } else {
+                     let pyproject_path = project.root().join("pyproject.toml");
+-                    fs_err::write(pyproject_path, content)?;
++                    uv_fs::write_text(pyproject_path, content)?;
+                     Ok(true)
+                 }
+             }
 diff --git a/crates/uv/src/commands/project/run.rs b/crates/uv/src/commands/project/run.rs
 index 4a0d872..21f4a7b 100644
 --- a/crates/uv/src/commands/project/run.rs
@@ -1502,6 +1902,32 @@ index 4a0d872..21f4a7b 100644
                  }
                  process.args(args);
  
+diff --git a/crates/uv/src/commands/project/upgrade.rs b/crates/uv/src/commands/project/upgrade.rs
+index 8bbff54..e7e9b69 100644
+--- a/crates/uv/src/commands/project/upgrade.rs
++++ b/crates/uv/src/commands/project/upgrade.rs
+@@ -511,7 +511,7 @@ pub(crate) async fn upgrade(
+         apply_requirement_replacements(&mut pyproject, updated_requirements.values())?;
+         let pyproject_path = project.project_root().join("pyproject.toml");
+         let edit = ProjectEdit::new([pyproject_path.clone()])?;
+-        fs_err::write(pyproject_path, pyproject.to_string())?;
++        uv_fs::write_text(pyproject_path, pyproject.to_string())?;
+         Some(edit)
+     } else {
+         None
+diff --git a/crates/uv/src/commands/project/version.rs b/crates/uv/src/commands/project/version.rs
+index 1d536f1..1c3a4a8 100644
+--- a/crates/uv/src/commands/project/version.rs
++++ b/crates/uv/src/commands/project/version.rs
+@@ -463,7 +463,7 @@ fn update_project(
+     // Save to disk
+     toml.set_version(new_version)?;
+     let content = toml.to_string();
+-    fs_err::write(pyproject_path, &content)?;
++    uv_fs::write_text(pyproject_path, &content)?;
+ 
+     // Update the `pyproject.toml` in-memory.
+     let project = project
 diff --git a/crates/uv/src/commands/tool/run.rs b/crates/uv/src/commands/tool/run.rs
 index 9d40e79..f1cba4e 100644
 --- a/crates/uv/src/commands/tool/run.rs

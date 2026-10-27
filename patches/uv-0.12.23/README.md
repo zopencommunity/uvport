@@ -25,6 +25,7 @@ important aligned versions:
 - ring 0.17.14
 - rustls 0.23.45 with the ring provider
 - nix 0.31.3
+- fs-err 3.3.1
 - getrandom 0.2.17 and 0.4.3
 
 Do not regenerate the lockfile. Copy `Cargo.lock.zos` to `Cargo.lock` after the
@@ -52,8 +53,8 @@ remain beside `uv`; it must not be replaced by a symlink.
 
 Published artifact checksums:
 
-- `uv`: `764f7d1f43a805dd35e05d0c2f13918d8605771378004ce1a0e5bedc1828130b`
-- `uvx`: `4bc2899cf90a2f1edd8b303c4b509056d1cdac9168c8cea31449a9762bbf2b05`
+- `uv`: `03a3ff1644ae839047ce109b699197a651678701d1838d1115a0e80da2879bfc`
+- `uvx`: `f3c1e0668f022028af43e6b05ebc26d95e683912f19e6c5147b522254b451304`
 
 Validated directly on z/OS: `uv --version`, `uvx --help`, `uv python list`,
 `uv init`, `uv venv`, TLS installation of zopen wheels, importing native
@@ -73,3 +74,10 @@ extensions, and executing HTTPie, Uvicorn, and FastMCP entry points with `uvx`.
   trampoline reliably.
 - Copy is the default package link mode on z/OS because cache and destination
   directories commonly reside on different filesystems.
+- Both `zos` (CPython 3.14+) and versioned `os390_*` wheel platform tags are
+  accepted.
+- `fs-err` uses path-based recursive removal on z/OS, avoiding the incompatible
+  fd-based `fdopendir` path in `std::fs::remove_dir_all`.
+- Generated project, lock, requirements, virtualenv, and entry-point text files
+  are persistently tagged ISO8859-1 so normal z/OS auto-conversion reads them
+  correctly.
