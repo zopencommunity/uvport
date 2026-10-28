@@ -1655,6 +1655,31 @@ index 074817b..c112322 100644
      }
  }
  
+diff --git a/crates/uv/src/child.rs b/crates/uv/src/child.rs
+index e8546cb..36146e2 100644
+--- a/crates/uv/src/child.rs
++++ b/crates/uv/src/child.rs
+@@ -35,7 +35,19 @@ pub(crate) async fn run_to_completion(mut handle: Child) -> anyhow::Result<ExitS
+     // a SIGTERM and does not have a SIGTERM handler, it is terminated. However, if PID 1 receives a
+     // SIGTERM, it is not terminated. In this context, it is essential for uv to forward the SIGTERM
+     // to the child process or the process will not be killable.
+-    #[cfg(unix)]
++    // Tokio's SIGCHLD-based `Child::wait` does not receive a usable child-exit
++    // notification on z/OS. The child becomes a zombie after producing its
++    // output while uv waits forever. Polling `try_wait` calls `waitpid` with
++    // `WNOHANG` directly, reaping the child without relying on SIGCHLD.
++    #[cfg(target_os = "zos")]
++    let status = loop {
++        if let Some(status) = handle.try_wait()? {
++            break status;
++        }
++        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
++    };
++
++    #[cfg(all(unix, not(target_os = "zos")))]
+     let status = {
+         use std::io::{IsTerminal, stdin};
+         use std::ops::Deref;
 diff --git a/crates/uv/src/commands/mod.rs b/crates/uv/src/commands/mod.rs
 index 34f691f..fa31d94 100644
 --- a/crates/uv/src/commands/mod.rs
