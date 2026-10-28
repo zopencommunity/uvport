@@ -53,8 +53,8 @@ remain beside `uv`; it must not be replaced by a symlink.
 
 Published artifact checksums:
 
-- `uv`: `03a3ff1644ae839047ce109b699197a651678701d1838d1115a0e80da2879bfc`
-- `uvx`: `f3c1e0668f022028af43e6b05ebc26d95e683912f19e6c5147b522254b451304`
+- `uv`: `c1f5076644a7424e4d711619b93e1d31ea8f520aacdc0ef7e61da247c67e9ffe`
+- `uvx`: `e6ac886868c9958eb50162a8a12752742d6868a9d82ffa8a9adf37cbea7d2987`
 
 Validated directly on z/OS: `uv --version`, `uvx --help`, `uv python list`,
 `uv init`, `uv venv`, TLS installation of zopen wheels, importing native
@@ -81,3 +81,6 @@ extensions, and executing HTTPie, Uvicorn, and FastMCP entry points with `uvx`.
 - Generated project, lock, requirements, virtualenv, and entry-point text files
   are persistently tagged ISO8859-1 so normal z/OS auto-conversion reads them
   correctly.
+- Child completion is polled with `try_wait` on z/OS because Tokio's
+  SIGCHLD-driven wait leaves an exited child as a zombie and causes `uvx` and
+  `uv run` to hang after the child has produced its output.
